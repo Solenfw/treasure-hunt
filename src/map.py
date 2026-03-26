@@ -1,6 +1,6 @@
 import random
 import pygame
-from settings import GRID_COLS, GRID_ROWS, TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, BROWN, GREEN, GRAY, YELLOW
+from settings import GRID_COLS, GRID_ROWS, TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, BROWN, GREEN, GRAY, YELLOW, RED
 
 
 class Tile:
