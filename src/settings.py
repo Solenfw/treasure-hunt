@@ -1,0 +1,30 @@
+# Game settings
+SCREEN_WIDTH = 1280
+SCREEN_HEIGHT = 720
+FPS = 60
+
+# Map settings
+GRID_COLS = 20
+GRID_ROWS = 20
+TILE_SIZE = 32  # so map is 640x640
+MAP_WIDTH = GRID_COLS * TILE_SIZE
+MAP_HEIGHT = GRID_ROWS * TILE_SIZE
+
+# Colors
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+GRAY = (100, 100, 100)
+GREEN = (50, 200, 50)
+BROWN = (120, 72, 0)
+RED = (200, 30, 30)
+YELLOW = (240, 230, 140)
+
+# Game constants
+STARTING_HEALTH = 2
+ROUND_TIME_MS = 2 * 60 * 1000  # 2 minutes
+
+# Assets paths
+ASSETS_DIR = 'assets'
+IMAGES_DIR = ASSETS_DIR + '/images'
+SOUNDS_DIR = ASSETS_DIR + '/sounds'
+FONTS_DIR = ASSETS_DIR + '/fonts'

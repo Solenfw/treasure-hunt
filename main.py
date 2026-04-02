@@ -1,9 +1,12 @@
+"""Entry point for Treasure Hunt game."""
+
 import pygame
 from src.game import Game
-from settings import FPS
+from src.settings import FPS
 
 
 def main():
+    """Initialize pygame and run the game."""
     pygame.init()
     game = Game()
     game.run()

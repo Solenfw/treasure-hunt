@@ -15,20 +15,26 @@ A grid-based competitive treasure hunting game built with Pygame. Supports local
 ## Project Structure
 ```
 TreasureHunt/
-├── main.py                # Game entry point
-├── settings.py            # Game constants
-├── requirements.txt       # Python dependencies
-├── .gitignore             # Git ignore rules
-├── assets/                # Sprites, audio, fonts
-├── src/
+├── assets/                 # Nguồn tải trên mạng (Pixel art, audio)
+│   ├── images/             # spritesheet nhân vật, đất, bom, kho báu
+│   ├── sounds/             # nhạc nền, tiếng đào đất, tiếng nổ bom
+│   └── fonts/              # file .ttf (pixel font)
+├── src/                    # Thư mục chứa code chính
 │   ├── __init__.py
-│   ├── game.py            # Game loop & state
-│   ├── map.py             # Map/grid logic
-│   ├── entities.py        # Player & Bot classes
-│   ├── ui.py              # UI rendering
-│   ├── skills.py          # Sabotage skills
-│   └── utils.py           # Helper functions
-```
+│   ├── main.py             # Entry point (khởi tạo game loop)
+│   ├── settings.py         # Chứa hằng số (FPS, WIDTH, HEIGHT, TILE_SIZE=32)
+│   ├── game_state.py       # Quản lý State (Menu, Chơi game, Thắng/Thua)
+│   ├── player.py           # Class Player (Update vị trí, quản lý máu)
+│   ├── map.py              # Class Grid 20x20 (Tạo bản đồ, logic đào bới)
+│   ├── hint_system.py      # Logic thuật toán sinh chuỗi Gợi ý & Đặt bom
+│   ├── bot_ai.py           # Logic cho PvE và EvE
+│   ├── game.py             # Game loop chính
+│   └── ui_manager.py       # Vẽ HUD, Text, Thanh tiến trình, Menu
+├── main.py                 # Entry point wrapper
+├── settings.py             # Backward compatibility redirect
+├── .gitignore              # Bỏ qua __pycache__/, venv/ v.v..
+├── README.md               # Copy Markdown ở phần 1 vào đây
+└── requirements.txt        # Chứa thư viện cần thiết (pygame)
 
 ## Getting Started
 1. Install dependencies:
