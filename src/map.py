@@ -74,6 +74,7 @@ class Map:
         self.hint_positions = {}  # {hint_level: (col, row)}
         self.bomb_positions = []
         self.wall_positions = []
+        self.skill_markers = []
         if layout is None:
             self.generate_map(spawn_positions=spawn_positions)
         else:
@@ -86,6 +87,7 @@ class Map:
         self.hint_positions = {}
         self.bomb_positions = []
         self.wall_positions = []
+        self.skill_markers = []
 
     def generate_map(self, spawn_positions=None):
         """Generate the map with enforced hint chain and bombs."""
@@ -423,6 +425,46 @@ class Map:
             tile.mark_dug()
         return result
 
+    def get_next_objective_position(self, player):
+        """Return the next legal hint or treasure position for this actor."""
+        if getattr(player, 'found_treasure', False):
+            return None
+
+        next_level = player.current_hint_level + 1
+        if next_level < self.HINT_CHAIN_LENGTH:
+            return self.hint_positions.get(next_level)
+
+        if player.current_hint_level >= self.HINT_CHAIN_LENGTH - 1:
+            return self.treasure_pos
+
+        return None
+
+    def reveal_next_objective(self, player):
+        """Make the next legal objective visible without marking it dug."""
+        position = self.get_next_objective_position(player)
+        if position is None:
+            return None
+
+        tile = self.get_tile(*position)
+        if tile is None or tile.type == 'wall':
+            return None
+
+        tile.mark_visible()
+        self.add_skill_marker(position, marker_type='extra_hint')
+        return position
+
+    def add_skill_marker(self, position, marker_type='extra_hint', duration=1.8):
+        """Show a short visual ping on an important tile."""
+        if position is None:
+            return
+
+        self.skill_markers.append({
+            'position': tuple(position),
+            'type': marker_type,
+            'time': duration,
+            'duration': duration,
+        })
+
     def get_clue_text(self, hint_level):
         """Generate coordinate clue text for the next target."""
         def format_coords(position):
@@ -455,7 +497,12 @@ class Map:
 
     def update(self, dt):
         """Update map state each frame."""
-        pass
+        active_markers = []
+        for marker in self.skill_markers:
+            marker['time'] = max(0.0, marker.get('time', 0.0) - dt)
+            if marker['time'] > 0.0:
+                active_markers.append(marker)
+        self.skill_markers = active_markers
 
     def render(self, surface, x_offset=0, y_offset=0):
         """Render the entire map on the surface."""
@@ -492,3 +539,25 @@ class Map:
                     marker_color = YELLOW if tile.type == 'hint' else WHITE
                     marker_rect = rect.inflate(-12, -12)
                     pygame.draw.rect(surface, marker_color, marker_rect, 3)
+
+        self._render_skill_markers(surface, x_offset=x_offset, y_offset=y_offset)
+
+    def _render_skill_markers(self, surface, x_offset=0, y_offset=0):
+        """Render temporary map pings created by skill use."""
+        for marker in self.skill_markers:
+            col, row = marker['position']
+            remaining = marker.get('time', 0.0)
+            duration = max(0.01, marker.get('duration', 1.0))
+            progress = 1.0 - (remaining / duration)
+            center = (
+                x_offset + col * TILE_SIZE + TILE_SIZE // 2,
+                y_offset + row * TILE_SIZE + TILE_SIZE // 2,
+            )
+            radius = int(10 + progress * 20)
+            alpha = max(40, int(220 * (1.0 - progress)))
+
+            marker_surface = pygame.Surface((TILE_SIZE * 3, TILE_SIZE * 3), pygame.SRCALPHA)
+            local_center = (marker_surface.get_width() // 2, marker_surface.get_height() // 2)
+            pygame.draw.circle(marker_surface, (*YELLOW, alpha), local_center, radius, 3)
+            pygame.draw.circle(marker_surface, (*WHITE, min(255, alpha + 30)), local_center, 5)
+            surface.blit(marker_surface, (center[0] - local_center[0], center[1] - local_center[1]))

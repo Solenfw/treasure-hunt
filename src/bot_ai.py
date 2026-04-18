@@ -3,60 +3,81 @@
 import heapq
 import random
 import pygame
-from src.settings import GRID_COLS, GRID_ROWS, TILE_SIZE, RED
+from src.settings import BOT_DIFFICULTY_BALANCE, BOT_DIG_TIMINGS, GRID_COLS, GRID_ROWS, RED, STARTING_HEALTH, TILE_SIZE
 from src.game_mode import Difficulty
+from src.skills import apply_blind, apply_freeze, create_skill_state, tick_actor_effects, use_actor_skill
 
 
 class BotAI:
     """AI controller for bot players with difficulty levels."""
-    
+
+    DIG_AUDIO_EVENTS = {
+        'hint_correct': 'key',
+        'treasure': 'treasure',
+        'bomb': 'bomb',
+        'locked': 'locked',
+        'empty': 'dig',
+    }
+
     def __init__(self, bot_id, col, row, difficulty=Difficulty.NORMAL):
         self.bot_id = bot_id
         self.player_id = bot_id
         self.col = col
         self.row = row
-        self.health = 2
+        self.health = STARTING_HEALTH
         self.current_hint_level = -1
         self.color = (100, 149, 237)  # Cornflower blue
         self.display_name = f"AI {bot_id}"
         self.control_hint = "AUTO"
         self.difficulty = difficulty
         self.found_treasure = False
+        self.skills = create_skill_state()
+        self.pending_audio_events = []
+        self.is_frozen = False
+        self.freeze_time = 0.0
+        self.freeze_end_time = 0.0
+        self.is_blinded = False
+        self.blind_time = 0.0
+        self.last_skill_result = None
+        self.skill_feedback = None
         
         # Behavior parameters based on difficulty
         self.move_cooldown = 0.0
         self.dig_cooldown = 0.0
         self.dig_stun = 0.0
         
-        # Difficulty-based parameters
-        if difficulty == Difficulty.EASY:
-            self.move_speed = 1.0  # Seconds between moves
-            self.dig_probability = 0.2  # 20% chance to dig
-            self.accuracy = 0.4  # 40% chance of intelligent dig
-        elif difficulty == Difficulty.HARD:
-            self.move_speed = 0.3
-            self.dig_probability = 0.5
-            self.accuracy = 0.9
-        else:  # NORMAL
-            self.move_speed = 0.6
-            self.dig_probability = 0.35
-            self.accuracy = 0.65
+        difficulty_key = {
+            Difficulty.EASY: 'easy',
+            Difficulty.NORMAL: 'normal',
+            Difficulty.HARD: 'hard',
+        }[difficulty]
+        config = BOT_DIFFICULTY_BALANCE[difficulty_key]
+        self.move_speed = config['move_speed']
+        self.dig_probability = config['dig_probability']
+        self.search_weight = config['search_weight']
+        self.wrong_dig_probability = config['wrong_dig_probability']
+        self.skill_aggression = config['skill_aggression']
+        self.skill_check_delay = config['skill_check_delay']
         
         # Memory of found hints
         self.hint_memory = set()
         self.bomb_memory = set()
         self.searched_tiles = set()
         self.current_target = None
+        self.skill_decision_cooldown = random.uniform(self.skill_check_delay * 0.5, self.skill_check_delay)
 
-    def update(self, dt, game_map):
+    def update(self, dt, game_map, opponent=None, opponent_map=None):
         """Update bot AI logic each frame."""
+        tick_actor_effects(self, dt)
         self.move_cooldown = max(0, self.move_cooldown - dt)
         self.dig_cooldown = max(0, self.dig_cooldown - dt)
         self.dig_stun = max(0, self.dig_stun - dt)
         
-        # Can't move while stunned
-        if self.dig_stun > 0:
+        # Can't act while stunned or frozen.
+        if self.dig_stun > 0 or self.is_frozen:
             return
+
+        self._maybe_use_skill(dt, game_map, opponent, opponent_map)
         
         # Movement logic
         if self.move_cooldown <= 0:
@@ -69,13 +90,35 @@ class BotAI:
         if self.dig_cooldown <= 0 and (on_target or random.random() < self.dig_probability):
             self._try_dig(game_map)
 
+    def _maybe_use_skill(self, dt, game_map, opponent=None, opponent_map=None):
+        """Use skills occasionally without interrupting movement/pathfinding."""
+        self.skill_decision_cooldown = max(0.0, self.skill_decision_cooldown - dt)
+        if self.skill_decision_cooldown > 0.0 or self.is_blinded:
+            return
+
+        jitter = random.uniform(0.8, 1.25)
+        self.skill_decision_cooldown = self.skill_check_delay * jitter
+
+        if random.random() > self.skill_aggression:
+            return
+
+        opponent_progress = getattr(opponent, 'current_hint_level', -1) if opponent is not None else -1
+        if opponent is not None and opponent_progress >= self.current_hint_level:
+            if self.use_skill('freeze', own_map=game_map, target=opponent, target_map=opponent_map):
+                return
+            if self.use_skill('blind', own_map=game_map, target=opponent, target_map=opponent_map):
+                return
+
+        if random.random() < 0.6:
+            self.use_skill('extra_hint', own_map=game_map, target=opponent, target_map=opponent_map)
+
     def _make_move(self, game_map):
         """Decide where to move based on AI difficulty."""
-        if self.difficulty == Difficulty.EASY:
-            direction = self._pick_search_move(game_map, search_weight=0.65)
+        if self.is_blinded:
+            available_directions = self._available_directions(game_map)
+            direction = random.choice(available_directions + ['stay', 'stay']) if available_directions else 'stay'
         else:
-            search_weight = 0.85 if self.difficulty == Difficulty.NORMAL else 1.0
-            direction = self._pick_search_move(game_map, search_weight=search_weight)
+            direction = self._pick_search_move(game_map, search_weight=self.search_weight)
         
         self._move_in_direction(direction, game_map)
 
@@ -217,42 +260,61 @@ class BotAI:
         if not tile or tile.revealed or tile.type == 'wall':
             return
 
-        target = self._get_current_target(game_map)
+        target = None if self.is_blinded else self._get_current_target(game_map)
         on_target = target == (self.col, self.row)
         
         # Intelligent digging based on difficulty
         if on_target:
             should_dig = True
-        elif self.difficulty == Difficulty.EASY:
-            should_dig = random.random() < (self.dig_probability * 0.35)
-        elif self.difficulty == Difficulty.HARD:
-            should_dig = (self.col, self.row) not in self.searched_tiles and random.random() < self.accuracy
         else:
-            should_dig = random.random() < (self.dig_probability * 0.5)
+            should_dig = (
+                (self.col, self.row) not in self.searched_tiles
+                and random.random() < self.wrong_dig_probability
+            )
         
         if not should_dig:
             return
         
         result = game_map.try_dig(self)
+        self._queue_audio_event(self.DIG_AUDIO_EVENTS.get(result))
         if result != 'locked':
             self.searched_tiles.add((self.col, self.row))
-        
-        # Update memory
+
+        timing = BOT_DIG_TIMINGS.get(result)
+        if timing:
+            self.dig_stun = timing['stun']
+            self.dig_cooldown = timing['cooldown']
+
         if result == 'hint_correct':
             self.hint_memory.add((self.col, self.row))
-            self.dig_cooldown = 0.3
         elif result == 'bomb':
             self.bomb_memory.add((self.col, self.row))
-            self.dig_stun = 1.5
-            self.dig_cooldown = 1.5
-        elif result in ('empty', 'locked'):
-            self.dig_stun = 0.5
-            self.dig_cooldown = 2.0
-        elif result in ('already_dug', 'unavailable', 'blocked'):
-            self.dig_cooldown = 0.15
-        elif result == 'treasure':
-            self.dig_cooldown = 0.0
-            # Treasure found!
+
+    def use_skill(self, skill_name, own_map=None, target=None, target_map=None):
+        """Use a skill if available."""
+        success = use_actor_skill(self, skill_name, own_map=own_map, target=target, target_map=target_map)
+        if success:
+            self._queue_audio_event(skill_name)
+        return success
+
+    def freeze(self, duration):
+        """Apply freeze effect to bot."""
+        apply_freeze(self, duration)
+
+    def blind(self, duration):
+        """Apply blind effect to bot."""
+        apply_blind(self, duration)
+
+    def consume_audio_events(self):
+        """Return and clear any queued audio events."""
+        events = list(self.pending_audio_events)
+        self.pending_audio_events.clear()
+        return events
+
+    def _queue_audio_event(self, event_name):
+        """Store one short audio cue for the main game loop to play."""
+        if event_name:
+            self.pending_audio_events.append(event_name)
 
     def render(self, surface, x_offset=0, y_offset=0):
         """Render bot on the surface."""
@@ -264,3 +326,40 @@ class BotAI:
         )
         pygame.draw.rect(surface, self.color, rect)
         pygame.draw.rect(surface, RED, rect, 2)
+        self._render_skill_effects(surface, rect)
+        self._render_skill_feedback(surface, rect)
+
+    def _render_skill_effects(self, surface, rect):
+        """Render active freeze/blind effects on top of the bot."""
+        if self.is_frozen:
+            ice_overlay = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+            ice_overlay.fill((80, 190, 255, 120))
+            surface.blit(ice_overlay, rect.topleft)
+            pygame.draw.rect(surface, (180, 235, 255), rect, 3)
+            pygame.draw.line(surface, (220, 250, 255), rect.midtop, rect.midbottom, 2)
+            pygame.draw.line(surface, (220, 250, 255), rect.midleft, rect.midright, 2)
+
+        if self.is_blinded:
+            blind_overlay = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+            blind_overlay.fill((30, 20, 55, 135))
+            surface.blit(blind_overlay, rect.topleft)
+            pygame.draw.circle(surface, (170, 110, 255), rect.center, 10, 2)
+            pygame.draw.line(surface, (170, 110, 255), rect.topleft, rect.bottomright, 2)
+
+    def _render_skill_feedback(self, surface, rect):
+        """Render short skill text above the actor."""
+        feedback = self.skill_feedback
+        if not feedback:
+            return
+
+        remaining = feedback.get('time', 0.0)
+        duration = max(0.01, feedback.get('duration', 1.0))
+        alpha = max(0, min(255, int(255 * remaining / duration)))
+        if alpha <= 0:
+            return
+
+        font = pygame.font.SysFont('Arial', 14, bold=True)
+        text = font.render(feedback.get('message', ''), True, (255, 245, 170))
+        text.set_alpha(alpha)
+        text_rect = text.get_rect(center=(rect.centerx, rect.top - 8))
+        surface.blit(text, text_rect)

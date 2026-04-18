@@ -1,6 +1,7 @@
 """Game state management for menu, playing, paused, and game over states."""
 
 from src.game_mode import GameMode
+from src.settings import ROUND_TIME_SECONDS
 
 
 class GameState:
@@ -9,6 +10,7 @@ class GameState:
     MENU = 'menu'
     MODE_SELECT = 'mode_select'
     DIFFICULTY_SELECT = 'difficulty_select'
+    SETTINGS = 'settings'
     PLAYING = 'playing'
     PAUSED = 'paused'
     GAME_OVER = 'gameover'
@@ -17,7 +19,7 @@ class GameState:
         self.current_state = self.MENU
         self.previous_state = None
         self.game_mode = GameMode.PVP
-        self.round_time = 120.0  # 2 minutes
+        self.round_time = ROUND_TIME_SECONDS
         self.round_time_remaining = self.round_time
         self.winner = None
         self.message = ""
@@ -46,6 +48,10 @@ class GameState:
     def is_paused(self):
         """Check if game is currently paused."""
         return self.current_state == self.PAUSED
+
+    def is_settings(self):
+        """Check if game is in settings state."""
+        return self.current_state == self.SETTINGS
     
     def is_game_over(self):
         """Check if game is over."""
