@@ -1,5 +1,6 @@
 """Main game loop and state management."""
 
+import os
 import re
 
 import pygame
@@ -39,6 +40,7 @@ class Game:
         GameMode.PVE_HARD: 'PvE Hard',
         GameMode.EVE: 'EvE',
     }
+    INPUT_DEBUG = os.getenv('TREASURE_HUNT_INPUT_DEBUG', '').strip() == '1'
 
     def __init__(self):
         self.base_size = (SCREEN_WIDTH, SCREEN_HEIGHT)
@@ -74,6 +76,8 @@ class Game:
         self.settings_return_state = GameState.MENU
         self.manual_return_state = GameState.SETTINGS
         self.ui_actions = {}
+        self.held_scancodes = set()
+        self.pvp_player1_held_directions = set()
 
     def _apply_display_mode(self):
         """Create the real display surface and update the logical viewport."""
@@ -442,7 +446,7 @@ class Game:
 
     def _binding_text_matches(self, event, binding):
         """Return True when typed text matches a single-letter binding."""
-        text_key = event.unicode.lower() if getattr(event, 'unicode', '') else ''
+        text_key = self._event_letter(event)
         if not text_key:
             return False
 
@@ -456,6 +460,18 @@ class Game:
     def _matches_input_binding(self, event, binding):
         """Return True when a KEYDOWN event matches a control binding."""
         return self._matches_control(event.key, binding) or self._binding_text_matches(event, binding)
+
+    def _event_letter(self, event):
+        """Return the best lowercase single-letter representation for a keyboard event."""
+        text_key = event.unicode.lower() if getattr(event, 'unicode', '') else ''
+        if len(text_key) == 1 and text_key.isalpha():
+            return text_key
+
+        try:
+            key_name = pygame.key.name(event.key).lower()
+        except (TypeError, ValueError):
+            key_name = ''
+        return key_name if len(key_name) == 1 and key_name.isalpha() else ''
 
     def _matches_direction_input(self, event, controls, direction, fallback_text=''):
         """Return True when a movement key matches by keycode, scancode, or typed text."""
@@ -477,6 +493,62 @@ class Game:
             player.move_repeat_timer = self.PVP_PLAYER1_MOVE_REPEAT_INITIAL
         return moved
 
+    def _pvp_player1_direction_from_event(self, event):
+        """Resolve one PvP Player 1 movement direction from a raw keyboard event."""
+        letter = self._event_letter(event)
+        scan_code = getattr(event, 'scancode', None)
+        if letter == 'w' or scan_code in (26, 17):
+            return 'up'
+        if letter == 's' or scan_code in (22, 31):
+            return 'down'
+        if letter == 'a' or scan_code in (4, 30):
+            return 'left'
+        if letter == 'd' or scan_code in (7, 32):
+            return 'right'
+        return None
+
+    def _update_pvp_player1_held_state(self, event, pressed):
+        """Track held movement directions for PvP Player 1 independently of text input behavior."""
+        direction = self._pvp_player1_direction_from_event(event)
+        if direction is None:
+            return
+        if pressed:
+            self.pvp_player1_held_directions.add(direction)
+        else:
+            self.pvp_player1_held_directions.discard(direction)
+
+    def _debug_pvp_player1_event(self, event, pressed):
+        """Print raw runtime key data for PvP Player 1 troubleshooting when enabled."""
+        if not self.INPUT_DEBUG:
+            return
+        if not self.game_state or getattr(self.game_state, 'game_mode', None) != GameMode.PVP:
+            return
+
+        try:
+            key_name = pygame.key.name(event.key)
+        except (TypeError, ValueError):
+            key_name = '<invalid>'
+
+        print(
+            f"[PVP-P1-INPUT] {'DOWN' if pressed else 'UP'} "
+            f"key={event.key} name={key_name!r} "
+            f"unicode={getattr(event, 'unicode', '')!r} scancode={getattr(event, 'scancode', None)!r} "
+            f"resolved={self._pvp_player1_direction_from_event(event)!r}"
+        )
+
+    def _is_key_binding_held(self, binding, extra_scancodes=()):
+        """Return True when a key binding is currently held via key state or tracked scancodes."""
+        pressed = pygame.key.get_pressed()
+        bindings = binding if isinstance(binding, (tuple, list, set)) else (binding,)
+        for key in bindings:
+            if isinstance(key, int) and pressed[key]:
+                return True
+
+        for scan_code in extra_scancodes:
+            if scan_code in self.held_scancodes:
+                return True
+        return False
+
     def _poll_pvp_player1_movement(self, player, game_map):
         """Fallback movement path for PvP Player 1 using pressed-key state."""
         game_mode = getattr(getattr(self, 'game_state', None), 'game_mode', None)
@@ -485,12 +557,12 @@ class Game:
         if player.move_repeat_timer > 0:
             return
 
-        pressed = pygame.key.get_pressed()
+        controls = player.controls
         held_keys = (
-            pressed[pygame.K_w],
-            pressed[pygame.K_s],
-            pressed[pygame.K_a],
-            pressed[pygame.K_d],
+            'up' in self.pvp_player1_held_directions or self._is_key_binding_held(controls['up'], (controls.get('up_scan'), 17)),
+            'down' in self.pvp_player1_held_directions or self._is_key_binding_held(controls['down'], (controls.get('down_scan'), 31)),
+            'left' in self.pvp_player1_held_directions or self._is_key_binding_held(controls['left'], (controls.get('left_scan'), 30)),
+            'right' in self.pvp_player1_held_directions or self._is_key_binding_held(controls['right'], (controls.get('right_scan'), 32)),
         )
         if not any(held_keys):
             player.move_repeat_timer = 0.0
@@ -520,23 +592,15 @@ class Game:
             return
 
         key = event.key
-        text_key = event.unicode.lower() if getattr(event, 'unicode', '') else ''
+        text_key = self._event_letter(event)
         scan_code = getattr(event, 'scancode', None)
         controls = player.controls
         game_mode = getattr(getattr(self, 'game_state', None), 'game_mode', None)
 
         if game_mode == GameMode.PVP and player.player_id == 1:
-            if key == pygame.K_w or text_key == 'w' or scan_code in (26, 17):
-                self._move_player(player, 'up', game_map)
-                return
-            if key == pygame.K_s or text_key == 's' or scan_code in (22, 31):
-                self._move_player(player, 'down', game_map)
-                return
-            if key == pygame.K_a or text_key == 'a' or scan_code in (4, 30):
-                self._move_player(player, 'left', game_map)
-                return
-            if key == pygame.K_d or text_key == 'd' or scan_code in (7, 32):
-                self._move_player(player, 'right', game_map)
+            direction = self._pvp_player1_direction_from_event(event)
+            if direction:
+                self._move_player(player, direction, game_map)
                 return
             if key == pygame.K_q or text_key == 'q' or scan_code in (20, 16):
                 player.use_skill('freeze', own_map=game_map, target=opponent, target_map=opponent_map)
@@ -615,8 +679,23 @@ class Game:
     def handle_events(self):
         """Process game events."""
         for event in pygame.event.get():
+            if event.type == pygame.KEYDOWN:
+                scan_code = getattr(event, 'scancode', None)
+                if scan_code:
+                    self.held_scancodes.add(scan_code)
+                self._update_pvp_player1_held_state(event, True)
+                self._debug_pvp_player1_event(event, True)
+            elif event.type == pygame.KEYUP:
+                scan_code = getattr(event, 'scancode', None)
+                if scan_code:
+                    self.held_scancodes.discard(scan_code)
+                self._update_pvp_player1_held_state(event, False)
+                self._debug_pvp_player1_event(event, False)
+                continue
             if event.type == pygame.QUIT:
                 self.running = False
+                self.held_scancodes.clear()
+                self.pvp_player1_held_directions.clear()
                 continue
 
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -787,12 +866,18 @@ class Game:
     def _start_game(self):
         """Initialize a new game."""
         game_mode = self.game_state.game_mode
+        self.held_scancodes.clear()
+        self.pvp_player1_held_directions.clear()
         spawn_col = self.SPAWN_COL
         spawn_row = self.SPAWN_ROW
         spawn_positions = [(spawn_col, spawn_row)]
-        shared_layout = Map(spawn_positions=spawn_positions).export_layout()
-        self.map1 = Map(layout=shared_layout)
-        self.map2 = Map(layout=shared_layout)
+
+        if game_mode == GameMode.EVE:
+            shared_layout = Map(spawn_positions=spawn_positions).export_layout()
+            self.map1 = Map(layout=shared_layout)
+            self.map2 = Map(layout=shared_layout)
+        else:
+            self.map1, self.map2 = self._create_distinct_competitor_maps(spawn_positions)
 
         if game_mode == GameMode.PVP:
             self.player1 = Player(spawn_col, spawn_row, player_id=1)
@@ -825,6 +910,26 @@ class Game:
 
         self.game_state.reset_round()
         self.game_state.set_state(GameState.PLAYING)
+
+    def _create_distinct_competitor_maps(self, spawn_positions):
+        """Create two valid maps whose hint/obstacle layouts are not identical."""
+        map1 = Map(spawn_positions=spawn_positions)
+
+        for _ in range(Map.GENERATION_ATTEMPTS):
+            map2 = Map(spawn_positions=spawn_positions)
+            if not self._maps_share_cheatable_layout(map1, map2):
+                return map1, map2
+
+        # Fallback: keep two valid independently generated maps even if a rare collision happens.
+        return map1, Map(spawn_positions=spawn_positions)
+
+    def _maps_share_cheatable_layout(self, map1, map2):
+        """Return True when two maps expose the same hints and obstacles."""
+        return (
+            map1.hint_positions == map2.hint_positions
+            and set(map1.wall_positions) == set(map2.wall_positions)
+            and set(map1.bomb_positions) == set(map2.bomb_positions)
+        )
 
     def _check_victory_conditions(self):
         """Evaluate all end-of-round conditions."""
@@ -1069,6 +1174,11 @@ class Game:
     def run(self):
         """Main game loop."""
         self.render()
+        # Drop any input/window events queued during initial window creation so the
+        # first frame does not accidentally consume a stale quit/escape/click event.
+        pygame.event.clear()
+        self.held_scancodes.clear()
+        self.pvp_player1_held_directions.clear()
         while self.running:
             dt = self.clock.tick(FPS) / 1000.0
             self.handle_events()

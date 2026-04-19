@@ -1,17 +1,23 @@
 """Entry point for Treasure Hunt game."""
 
 import pygame
+
 from src.game import Game
-from src.settings import FPS
 
 
 def main():
     """Initialize pygame and run the game."""
     pygame.init()
-    game = Game()
-    game.run()
-    pygame.quit()
+    try:
+        game = Game()
+        game.run()
+    except KeyboardInterrupt:
+        # Allow Ctrl+C in the terminal to close the game without a traceback.
+        return 130
+    finally:
+        pygame.quit()
+    return 0
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())
