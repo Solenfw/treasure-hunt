@@ -1,5 +1,7 @@
 """UI management for HUD, menu, and text rendering."""
 
+import unicodedata
+
 import pygame
 
 from src.map import Map
@@ -9,15 +11,239 @@ from src.settings import CLUE_BOX_HEIGHT, HUD_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGH
 class UIManager:
     """Manages all UI rendering including menus, HUD, and text."""
 
+    TRANSLATIONS = {
+        'en': {
+            'main_eyebrow': 'Adventure Begins',
+            'main_subtitle': 'Follow the old map, avoid traps, and race to the hidden treasure chest.',
+            'start_game': 'Start Game',
+            'exit': 'Exit',
+            'footer_theme': 'Brown & Gold Theme',
+            'footer_mode': 'MODE',
+            'hint_start_exit': 'ENTER to start  |  ESC to exit',
+            'mode_eyebrow': 'Choose Match Type',
+            'mode_title': 'Select Game Mode',
+            'mode_subtitle': 'Start with mode selection, then move into a dedicated difficulty screen before the match begins.',
+            'mode_pvp': 'Player vs Player',
+            'mode_pve': 'Player vs Machine',
+            'mode_eve': 'Machine vs Machine',
+            'footer_map_room': 'Map Room',
+            'footer_home': 'HOME',
+            'help_select': '1-3 or Up/Down + Enter',
+            'difficulty_eyebrow': 'Danger Level',
+            'difficulty_title_pvp': 'Classic Duel Setup',
+            'difficulty_title_pve': 'Choose AI Difficulty',
+            'difficulty_title_eve': 'Choose Bot Difficulty',
+            'difficulty_subtitle_pvp': 'PvP keeps the same gameplay rules. Use this confirmation screen before entering the match.',
+            'difficulty_subtitle_pve': 'Select how strong and efficient the bot should be before the hunt begins.',
+            'difficulty_subtitle_eve': 'Set the difficulty both bots will use while you spectate the full match.',
+            'option_classic_pvp': 'Classic PvP',
+            'option_easy': 'Easy',
+            'option_normal': 'Normal',
+            'option_hard': 'Hard',
+            'footer_temple_gate': 'Temple Gate',
+            'footer_back': 'BACK',
+            'settings_eyebrow': 'Control Panel',
+            'settings_title': 'Settings',
+            'settings_subtitle': 'Adjust your adventure before entering the treasure island.',
+            'settings_music': 'Music',
+            'settings_sfx': 'SFX',
+            'settings_hints': 'Hints',
+            'settings_language': 'Language',
+            'settings_manual': 'Manual',
+            'language_en': 'English',
+            'language_vi': 'Tieng Viet',
+            'manual_button': 'Open Manual',
+            'save_return': 'Save & Return',
+            'back_to_start': 'Back To Start',
+            'back': 'Back',
+            'return_to_match': 'Return To Match',
+            'manual_eyebrow': 'Guidebook',
+            'manual_title': 'How To Play',
+            'manual_subtitle': 'A quick reference for rules, controls, and match goals.',
+            'manual_objective_title': 'Objective',
+            'manual_objective_1': 'Collect Key 1, Key 2, and Key 3 in order.',
+            'manual_objective_2': 'Dig the treasure only after all 3 keys are found.',
+            'manual_objective_3': 'Beat the opponent before HP or time runs out.',
+            'manual_rules_title': 'Rules',
+            'manual_rules_1': 'Wrong digs cause a short cooldown / stun.',
+            'manual_rules_2': 'Bombs deal 1 damage. At 0 HP, that side loses.',
+            'manual_rules_3': 'Walls block movement for both players and bots.',
+            'manual_rules_4': 'If the timer reaches 0, the round ends in a draw.',
+            'manual_controls_title': 'Controls',
+            'manual_controls_1': 'PvP P1: WASD, Space/L-Ctrl, Q/E/F',
+            'manual_controls_2': 'PvP P2: Arrows, Enter/R-Ctrl, I/O/P',
+            'manual_controls_3': 'PvE: move with WASD or Arrows, dig with Space/Enter.',
+            'manual_skills_title': 'Skills',
+            'manual_skills_1': 'Freeze: stop the opponent for a short time.',
+            'manual_skills_2': 'Blind: hide useful information from the opponent.',
+            'manual_skills_3': 'Extra Hint: reveal more information about your next target.',
+            'manual_close': 'Back To Settings',
+            'pause_eyebrow': 'Rest Point',
+            'pause_title': 'Paused',
+            'pause_subtitle': 'Take a breath, then resume or restart the current hunt.',
+            'resume': 'Resume',
+            'restart': 'Restart',
+            'mode_select': 'Mode Select',
+            'game_over_eyebrow': 'Round Complete',
+            'play_again': 'Play Again',
+            'main_menu': 'Main Menu',
+            'winner_suffix': 'Wins!',
+            'draw_title': 'Draw',
+            'label_player': 'Player',
+            'label_ai': 'AI',
+            'hud_key': 'KEY',
+            'hud_treasure': 'TREASURE',
+            'hud_recovering': 'Recovering',
+            'blind_overlay': 'BLINDED',
+            'clue_label': 'CLUE',
+            'clue_hint_unavailable': 'Hint {number} is unavailable.',
+            'clue_hint_at': 'Hint {number} is at {coords}',
+            'clue_no_more': 'No more hints!',
+            'clue_cannot_compute': 'Cannot compute next clue',
+            'clue_treasure_at': 'Treasure is at {coords}. You need all {count} hints to open it.',
+            'clue_disabled': 'Hints disabled in settings.',
+            'clue_blinded': 'Clue hidden while blinded.',
+            'end_reason_treasure': 'Secured the treasure after collecting all {count} keys.',
+            'end_reason_both_treasure': 'Both competitors secured the treasure.',
+            'end_reason_both_hp': 'Both competitors lost all HP.',
+            'end_reason_lost_hp': '{actor} lost all HP.',
+            'end_reason_timer': 'Timer expired before anyone won.',
+        },
+        'vi': {
+            'main_eyebrow': 'Bắt Đầu Hành Trình',
+            'main_subtitle': 'Theo bản đồ cũ, tránh bẫy, và đua đến kho báu bị ẩn.',
+            'start_game': 'Bắt Đầu',
+            'exit': 'Thoát',
+            'footer_theme': 'Chủ Đề Nâu Vàng',
+            'footer_mode': 'MODE',
+            'hint_start_exit': 'ENTER để chơi  |  ESC để thoát',
+            'mode_eyebrow': 'Chọn Kiểu Trận',
+            'mode_title': 'Chọn Chế Độ Chơi',
+            'mode_subtitle': 'Bắt đầu từ chế độ chơi, sau đó chọn độ khó trước khi vào trận.',
+            'mode_pvp': 'Người vs Người',
+            'mode_pve': 'Người vs Máy',
+            'mode_eve': 'Máy vs Máy',
+            'footer_map_room': 'Phòng Bản Đồ',
+            'footer_home': 'HOME',
+            'help_select': 'Nhấn 1-3 hoặc Lên/Xuống + Enter',
+            'difficulty_eyebrow': 'Mức Độ Nguy Hiểm',
+            'difficulty_title_pvp': 'Xác Nhận Đấu PvP',
+            'difficulty_title_pve': 'Chọn Độ Khó AI',
+            'difficulty_title_eve': 'Chọn Độ Khó Bot',
+            'difficulty_subtitle_pvp': 'PvP giữ nguyên luật chơi. Màn này là bước xác nhận trước khi vào trận.',
+            'difficulty_subtitle_pve': 'Chọn AI sẽ mạnh và tối ưu đến mức nào.',
+            'difficulty_subtitle_eve': 'Chọn độ khó mà cả hai bot sẽ sử dụng khi tự chơi với nhau.',
+            'option_classic_pvp': 'PvP Cổ Điển',
+            'option_easy': 'Dễ',
+            'option_normal': 'Thường',
+            'option_hard': 'Khó',
+            'footer_temple_gate': 'Cổng Đền',
+            'footer_back': 'BACK',
+            'settings_eyebrow': 'Bảng Điều Khiển',
+            'settings_title': 'Cài Đặt',
+            'settings_subtitle': 'Điều chỉnh giao diện trước khi vào hành trình tìm kho báu.',
+            'settings_music': 'Nhạc Nền',
+            'settings_sfx': 'Hiệu Ứng',
+            'settings_hints': 'Gợi Ý',
+            'settings_language': 'Ngôn Ngữ',
+            'settings_manual': 'Hướng Dẫn',
+            'language_en': 'English',
+            'language_vi': 'Tiếng Việt',
+            'manual_button': 'Mở Hướng Dẫn',
+            'save_return': 'Lưu Và Quay Lại',
+            'back_to_start': 'Về Màn Hình Đầu',
+            'back': 'Quay Lại',
+            'return_to_match': 'Quay Lại Trận Đấu',
+            'manual_eyebrow': 'Sổ Tay',
+            'manual_title': 'Cách Chơi',
+            'manual_subtitle': 'Tóm tắt nhanh về mục tiêu, luật, điều khiển và kỹ năng.',
+            'manual_objective_title': 'Mục Tiêu',
+            'manual_objective_1': 'Tìm Key 1, Key 2, Key 3 theo đúng thứ tự.',
+            'manual_objective_2': 'Chỉ đào kho báu sau khi đã có đủ 3 key.',
+            'manual_objective_3': 'Đánh bại đối thủ trước khi hết máu hoặc hết giờ.',
+            'manual_rules_title': 'Luật Chơi',
+            'manual_rules_1': 'Đào sai ô sẽ bị cooldown / đứng lại trong thời gian ngắn.',
+            'manual_rules_2': 'Gặp bomb mất 1 HP. Về 0 HP là thua.',
+            'manual_rules_3': 'Tường chặn đường cho cả người chơi và bot.',
+            'manual_rules_4': 'Hết giờ thì trận đấu hòa.',
+            'manual_controls_title': 'Điều Khiển',
+            'manual_controls_1': 'PvP P1: WASD, Space/L-Ctrl, Q/E/F',
+            'manual_controls_2': 'PvP P2: Mũi tên, Enter/R-Ctrl, I/O/P',
+            'manual_controls_3': 'PvE: di chuyển bằng WASD hoặc mũi tên, đào bằng Space/Enter.',
+            'manual_skills_title': 'Kỹ Năng',
+            'manual_skills_1': 'Freeze: đóng băng đối thủ trong thời gian ngắn.',
+            'manual_skills_2': 'Blind: làm đối thủ bị hạn chế thông tin tạm thời.',
+            'manual_skills_3': 'Extra Hint: mở thêm thông tin về mục tiêu tiếp theo.',
+            'manual_close': 'Về Cài Đặt',
+            'pause_eyebrow': 'Tạm Dừng',
+            'pause_title': 'Đang Tạm Dừng',
+            'pause_subtitle': 'Nghỉ một nhịp rồi tiếp tục hoặc khởi động lại trận.',
+            'resume': 'Tiếp Tục',
+            'restart': 'Chơi Lại',
+            'mode_select': 'Chọn Mode',
+            'game_over_eyebrow': 'Kết Thúc Trận',
+            'play_again': 'Chơi Lại',
+            'main_menu': 'Menu Chính',
+            'winner_suffix': 'Thắng!',
+            'draw_title': 'Hòa',
+            'label_player': 'Người Chơi',
+            'label_ai': 'Máy',
+            'hud_key': 'CHÌA',
+            'hud_treasure': 'KHO BÁU',
+            'hud_recovering': 'Hồi Phục',
+            'blind_overlay': 'MÙ',
+            'clue_label': 'GỢI Ý',
+            'clue_hint_unavailable': 'Gợi ý {number} hiện không khả dụng.',
+            'clue_hint_at': 'Gợi ý {number} ở {coords}',
+            'clue_no_more': 'Không còn gợi ý nào!',
+            'clue_cannot_compute': 'Không thể tính gợi ý tiếp theo',
+            'clue_treasure_at': 'Kho báu ở {coords}. Bạn cần đủ {count} gợi ý để mở nó.',
+            'clue_disabled': 'Đã tắt gợi ý trong cài đặt.',
+            'clue_blinded': 'Gợi ý bị ẩn trong lúc bị Blind.',
+            'end_reason_treasure': 'Đã lấy được kho báu sau khi thu thập đủ {count} chìa.',
+            'end_reason_both_treasure': 'Cả hai bên đều tìm được kho báu.',
+            'end_reason_both_hp': 'Cả hai bên đều mất hết HP.',
+            'end_reason_lost_hp': '{actor} đã mất hết HP.',
+            'end_reason_timer': 'Hết giờ trước khi có người chiến thắng.',
+        },
+    }
+
     def __init__(self):
-        self.font_large = pygame.font.SysFont('Arial', 48, bold=True)
-        self.font_medium = pygame.font.SysFont('Arial', 32, bold=True)
-        self.font_small = pygame.font.SysFont('Arial', 20)
-        self.font_tiny = pygame.font.SysFont('Arial', 16)
+        self.font_large = self._load_text_font(48, bold=True)
+        self.font_medium = self._load_text_font(32, bold=True)
+        self.font_small = self._load_text_font(20)
+        self.font_tiny = self._load_text_font(16)
         self.clock_font = pygame.font.SysFont('monospace', 48, bold=True)
-        self.font_micro = pygame.font.SysFont('Arial', 14, bold=True)
+        self.font_micro = self._load_text_font(14, bold=True)
         self.font_icon = pygame.font.SysFont('Segoe UI Symbol', 22, bold=True)
         self._background_cache = {}
+
+    def _load_text_font(self, size, bold=False):
+        """Load a Windows-friendly UI font with good Vietnamese support."""
+        for family in ('Segoe UI', 'Tahoma', 'Arial', 'Arial Unicode MS'):
+            font_path = pygame.font.match_font(family, bold=bold)
+            if font_path:
+                font = pygame.font.Font(font_path, size)
+                font.set_bold(bold)
+                return font
+
+        return pygame.font.SysFont(None, size, bold=bold)
+
+    def _normalize_text(self, text):
+        """Normalize text before rendering so composed Vietnamese glyphs are used."""
+        return unicodedata.normalize('NFC', str(text))
+
+    def _render_text(self, font, text, color, antialias=True):
+        """Render one UI text surface with normalized Unicode."""
+        return font.render(self._normalize_text(text), antialias, color)
+
+    def translate(self, language, key, default=None):
+        """Return one translated UI string."""
+        return self.TRANSLATIONS.get(language, self.TRANSLATIONS['en']).get(key, default if default is not None else key)
+
+    def _t(self, language, key, default=None):
+        """Short alias for translation lookup inside render methods."""
+        return self.translate(language, key, default)
 
     def _interpolate_color(self, start, end, progress):
         """Blend two RGB colors."""
@@ -264,19 +490,19 @@ class UIManager:
 
     def _draw_header(self, surface, rect, eyebrow, title, subtitle=''):
         """Draw the menu header block."""
-        eyebrow_text = self.font_micro.render(eyebrow.upper(), True, YELLOW)
+        eyebrow_text = self._render_text(self.font_micro, eyebrow.upper(), YELLOW)
         eyebrow_rect = eyebrow_text.get_rect(center=(rect.centerx, rect.y + 42))
         surface.blit(eyebrow_text, eyebrow_rect)
 
         title_font = self.font_large if len(title) <= 16 else self.font_medium
-        title_text = title_font.render(title, True, WHITE)
+        title_text = self._render_text(title_font, title, WHITE)
         title_rect = title_text.get_rect(center=(rect.centerx, rect.y + 86))
         surface.blit(title_text, title_rect)
 
         if subtitle:
             lines = self._wrap_text(subtitle, self.font_tiny, rect.width - 70)
             for index, line in enumerate(lines[:3]):
-                subtitle_text = self.font_tiny.render(line, True, (244, 231, 188))
+                subtitle_text = self._render_text(self.font_tiny, line, (244, 231, 188))
                 subtitle_rect = subtitle_text.get_rect(center=(rect.centerx, rect.y + 128 + index * 18))
                 surface.blit(subtitle_text, subtitle_rect)
 
@@ -300,7 +526,7 @@ class UIManager:
         pygame.draw.rect(surface, border_color, rect, 2, border_radius=18)
 
         font = self.font_tiny if small else self.font_small
-        label_text = font.render(label, True, text_color)
+        label_text = self._render_text(font, label, text_color)
         label_rect = label_text.get_rect(center=rect.center)
         surface.blit(label_text, label_rect)
         return rect
@@ -312,7 +538,7 @@ class UIManager:
         fill = (76, 50, 26) if hovered else (52, 33, 18)
         pygame.draw.rect(surface, fill, rect, border_radius=14)
         pygame.draw.rect(surface, (204, 164, 75), rect, 2, border_radius=14)
-        text = self.font_tiny.render(label, True, WHITE)
+        text = self._render_text(self.font_tiny, label, WHITE)
         text_rect = text.get_rect(center=rect.center)
         surface.blit(text, text_rect)
         return rect
@@ -321,7 +547,7 @@ class UIManager:
         """Draw a footer pill."""
         pygame.draw.rect(surface, (66, 49, 24), rect, border_radius=18)
         pygame.draw.rect(surface, (160, 133, 74), rect, 1, border_radius=18)
-        text = self.font_micro.render(label, True, WHITE)
+        text = self._render_text(self.font_micro, label, WHITE)
         text_rect = text.get_rect(center=rect.center)
         surface.blit(text, text_rect)
 
@@ -330,7 +556,7 @@ class UIManager:
         pygame.draw.rect(surface, (63, 41, 22), rect, border_radius=16)
         pygame.draw.rect(surface, (164, 129, 63), rect, 1, border_radius=16)
 
-        label_text = self.font_small.render(label, True, WHITE)
+        label_text = self._render_text(self.font_small, label, WHITE)
         label_rect = label_text.get_rect(midleft=(rect.x + 18, rect.centery))
         surface.blit(label_text, label_rect)
 
@@ -342,6 +568,54 @@ class UIManager:
         knob_x = switch_rect.right - 16 if enabled else switch_rect.left + 16
         pygame.draw.circle(surface, WHITE, (knob_x, switch_rect.centery), 12)
         return rect
+
+    def _draw_value_row(self, surface, rect, label, value):
+        """Draw a settings row with a value pill on the right."""
+        pygame.draw.rect(surface, (63, 41, 22), rect, border_radius=16)
+        pygame.draw.rect(surface, (164, 129, 63), rect, 1, border_radius=16)
+
+        label_text = self._render_text(self.font_small, label, WHITE)
+        label_rect = label_text.get_rect(midleft=(rect.x + 18, rect.centery))
+        surface.blit(label_text, label_rect)
+
+        value_rect = pygame.Rect(rect.right - 150, rect.y + 10, 122, rect.height - 20)
+        pygame.draw.rect(surface, (86, 57, 28), value_rect, border_radius=12)
+        pygame.draw.rect(surface, (211, 173, 92), value_rect, 1, border_radius=12)
+        value_text = self._render_text(self.font_tiny, value, YELLOW)
+        value_text_rect = value_text.get_rect(center=value_rect.center)
+        surface.blit(value_text, value_text_rect)
+        return rect
+
+    def _manual_block(self, surface, rect, title, lines):
+        """Draw one manual/help section block."""
+        pygame.draw.rect(surface, (60, 38, 21), rect, border_radius=18)
+        pygame.draw.rect(surface, (191, 145, 67), rect, 2, border_radius=18)
+
+        header_rect = pygame.Rect(rect.x + 18, rect.y + 12, min(220, rect.width - 36), 28)
+        pygame.draw.rect(surface, (86, 57, 28), header_rect, border_radius=12)
+        pygame.draw.rect(surface, (211, 173, 92), header_rect, 1, border_radius=12)
+        title_text = self._render_text(self.font_micro, title, YELLOW)
+        surface.blit(title_text, title_text.get_rect(center=header_rect.center))
+
+        text_y = rect.y + 50
+        for index, line in enumerate(lines):
+            wrapped = self._wrap_text(f"- {line}", self.font_tiny, rect.width - 32)
+            for wrapped_line in wrapped[:2]:
+                body_text = self._render_text(self.font_tiny, wrapped_line, (248, 236, 207))
+                surface.blit(body_text, (rect.x + 16, text_y))
+                text_y += 18
+            text_y += 6
+
+    def _translate_option_label(self, language, option):
+        """Translate difficulty/menu option labels when localized text exists."""
+        mapping = {
+            'Classic PvP': 'option_classic_pvp',
+            'Easy': 'option_easy',
+            'Normal': 'option_normal',
+            'Hard': 'option_hard',
+        }
+        key = mapping.get(option)
+        return self._t(language, key, option) if key else option
 
     def render_gameplay_background(self, surface, split_screen=False):
         """Render the in-match background so gameplay shares the same theme as the menus."""
@@ -376,7 +650,7 @@ class UIManager:
             label_rect = pygame.Rect(border_rect.x + 18, border_rect.y - 6, min(190, border_rect.width - 36), 28)
             pygame.draw.rect(surface, (78, 50, 24), label_rect, border_radius=12)
             pygame.draw.rect(surface, (204, 164, 75), label_rect, 1, border_radius=12)
-            label_text = self.font_micro.render(label, True, WHITE)
+            label_text = self._render_text(self.font_micro, label, WHITE)
             label_text_rect = label_text.get_rect(center=label_rect.center)
             surface.blit(label_text, label_text_rect)
 
@@ -403,9 +677,18 @@ class UIManager:
         ]
         pygame.draw.polygon(surface, (44, 26, 10), points)
 
-    def _get_player_label(self, player):
-        """Return a friendly label for any human or bot competitor."""
-        return getattr(player, 'display_name', f"Player {player.player_id}")
+    def get_actor_label(self, player, language='en'):
+        """Return a localized gameplay label for a human or bot competitor."""
+        display_name = getattr(player, 'display_name', '')
+        player_id = getattr(player, 'player_id', '?')
+
+        if display_name and not (display_name.startswith('Player ') or display_name.startswith('AI ')):
+            return display_name
+
+        if hasattr(player, 'bot_id') or display_name.startswith('AI '):
+            return f"{self._t(language, 'label_ai')} {player_id}"
+
+        return f"{self._t(language, 'label_player')} {player_id}"
 
     def _wrap_text(self, text, font, max_width):
         """Wrap text to the available width using simple word boundaries."""
@@ -442,16 +725,16 @@ class UIManager:
         pygame.draw.circle(surface, color, (x + 7, y + 4), 4)
         pygame.draw.circle(surface, color, (x + 13, y + 4), 4)
 
-    def _draw_key_chip(self, surface, x, y, keys_found):
+    def _draw_key_chip(self, surface, x, y, keys_found, language='en'):
         """Draw a compact progress badge for collected keys."""
         chip_rect = pygame.Rect(x, y, 70, 22)
         pygame.draw.rect(surface, (58, 52, 22), chip_rect, border_radius=11)
         pygame.draw.rect(surface, YELLOW, chip_rect, 1, border_radius=11)
-        key_label = self.font_micro.render(f"KEY {keys_found}/{Map.HINT_CHAIN_LENGTH}", True, YELLOW)
+        key_label = self._render_text(self.font_micro, f"{self._t(language, 'hud_key')} {keys_found}/{Map.HINT_CHAIN_LENGTH}", YELLOW)
         key_rect = key_label.get_rect(center=chip_rect.center)
         surface.blit(key_label, key_rect)
 
-    def render_main_menu(self, surface):
+    def render_main_menu(self, surface, language='en'):
         """Render main menu screen."""
         self._draw_screen_background(surface, variant='menu')
         card_rect = self._card_rect(height=560)
@@ -459,29 +742,31 @@ class UIManager:
         self._draw_header(
             surface,
             card_rect,
-            'Adventure Begins',
+            self._t(language, 'main_eyebrow'),
             'Treasure Hunt',
-            'Follow the old map, avoid traps, and race to the hidden treasure chest.',
+            self._t(language, 'main_subtitle'),
         )
         self._draw_hero_coin(surface, (card_rect.centerx, card_rect.y + 258))
 
         start_rect = pygame.Rect(card_rect.x + 40, card_rect.y + 340, card_rect.width - 80, 58)
         exit_rect = pygame.Rect(card_rect.x + 40, card_rect.y + 412, card_rect.width - 80, 52)
         actions = {
-            'start': self._draw_button(surface, start_rect, 'Start Game', variant='primary'),
-            'quit': self._draw_button(surface, exit_rect, 'Exit', variant='secondary', small=True),
+            'start': self._draw_button(surface, start_rect, self._t(language, 'start_game'), variant='primary'),
+            'quit': self._draw_button(surface, exit_rect, self._t(language, 'exit'), variant='secondary', small=True),
         }
 
-        left_rect, _, right_rect = self._draw_footer(surface, card_rect, 'Brown & Gold Theme', left_label='SET', right_label='MODE')
-        actions['settings'] = left_rect
-        actions['mode'] = right_rect
+        footer_y = card_rect.bottom - 52
+        left_rect = pygame.Rect(card_rect.x + 24, footer_y, 52, 40)
+        right_rect = pygame.Rect(card_rect.right - 76, footer_y, 52, 40)
+        actions['settings'] = self._draw_icon_button(surface, left_rect, 'SET')
+        actions['mode'] = self._draw_icon_button(surface, right_rect, self._t(language, 'footer_mode'))
 
-        hint = self.font_micro.render('ENTER to start  |  ESC to exit', True, GRAY)
+        hint = self._render_text(self.font_micro, self._t(language, 'hint_start_exit'), GRAY)
         hint_rect = hint.get_rect(center=(card_rect.centerx, card_rect.bottom - 78))
         surface.blit(hint, hint_rect)
         return actions
 
-    def render_mode_select(self, surface, selected_mode=0):
+    def render_mode_select(self, surface, selected_mode=0, language='en'):
         """Render game mode selection screen."""
         self._draw_screen_background(surface, variant='mode')
         card_rect = self._card_rect(height=580)
@@ -489,15 +774,15 @@ class UIManager:
         self._draw_header(
             surface,
             card_rect,
-            'Choose Match Type',
-            'Select Game Mode',
-            'Start with mode selection, then move into a dedicated difficulty screen before the match begins.',
+            self._t(language, 'mode_eyebrow'),
+            self._t(language, 'mode_title'),
+            self._t(language, 'mode_subtitle'),
         )
 
         modes = [
-            ('pvp', 'Player vs Player', 'primary'),
-            ('pve', 'Player vs Machine', 'default'),
-            ('eve', 'Machine vs Machine', 'secondary'),
+            ('pvp', self._t(language, 'mode_pvp'), 'primary'),
+            ('pve', self._t(language, 'mode_pve'), 'default'),
+            ('eve', self._t(language, 'mode_eve'), 'secondary'),
         ]
         actions = {}
         start_y = card_rect.y + 212
@@ -511,33 +796,33 @@ class UIManager:
                 selected=index == selected_mode,
             )
 
-        left_rect, _, right_rect = self._draw_footer(surface, card_rect, 'Map Room', left_label='SET', right_label='HOME')
+        left_rect, _, right_rect = self._draw_footer(surface, card_rect, self._t(language, 'footer_map_room'), left_label='SET', right_label=self._t(language, 'footer_home'))
         actions['settings'] = left_rect
         actions['home'] = right_rect
 
-        help_text = self.font_micro.render('1-3 or Up/Down + Enter', True, GRAY)
+        help_text = self._render_text(self.font_micro, self._t(language, 'help_select'), GRAY)
         help_rect = help_text.get_rect(center=(card_rect.centerx, card_rect.bottom - 78))
         surface.blit(help_text, help_rect)
         return actions
 
-    def render_difficulty_select(self, surface, mode_family, options, selected_option=0):
+    def render_difficulty_select(self, surface, mode_family, options, selected_option=0, language='en'):
         """Render the difficulty selection screen."""
         self._draw_screen_background(surface, variant='difficulty')
         card_rect = self._card_rect(height=600)
         self._draw_card(surface, card_rect)
 
         mode_title = {
-            'pvp': 'Classic Duel Setup',
-            'pve': 'Choose AI Difficulty',
-            'eve': 'Choose Bot Difficulty',
-        }.get(mode_family, 'Choose Difficulty')
+            'pvp': self._t(language, 'difficulty_title_pvp'),
+            'pve': self._t(language, 'difficulty_title_pve'),
+            'eve': self._t(language, 'difficulty_title_eve'),
+        }.get(mode_family, self._t(language, 'mode_title'))
         subtitle = {
-            'pvp': 'PvP keeps the same gameplay rules. Use this confirmation screen before entering the match.',
-            'pve': 'Select how strong and efficient the bot should be before the hunt begins.',
-            'eve': 'Set the difficulty both bots will use while you spectate the full match.',
+            'pvp': self._t(language, 'difficulty_subtitle_pvp'),
+            'pve': self._t(language, 'difficulty_subtitle_pve'),
+            'eve': self._t(language, 'difficulty_subtitle_eve'),
         }.get(mode_family, '')
 
-        self._draw_header(surface, card_rect, 'Danger Level', mode_title, subtitle)
+        self._draw_header(surface, card_rect, self._t(language, 'difficulty_eyebrow'), mode_title, subtitle)
         actions = {}
         start_y = card_rect.y + 210
         for index, option in enumerate(options):
@@ -546,57 +831,60 @@ class UIManager:
             actions[f'difficulty_{index}'] = self._draw_button(
                 surface,
                 rect,
-                option,
+                self._translate_option_label(language, option),
                 variant=variant,
                 small=(len(option) > 18),
                 selected=index == selected_option,
             )
 
-        left_rect, _, right_rect = self._draw_footer(surface, card_rect, 'Temple Gate', left_label='SET', right_label='BACK')
+        left_rect, _, right_rect = self._draw_footer(surface, card_rect, self._t(language, 'footer_temple_gate'), left_label='SET', right_label=self._t(language, 'footer_back'))
         actions['settings'] = left_rect
         actions['back'] = right_rect
 
-        help_text = self.font_micro.render('1-3 or Up/Down + Enter', True, GRAY)
+        help_text = self._render_text(self.font_micro, self._t(language, 'help_select'), GRAY)
         help_rect = help_text.get_rect(center=(card_rect.centerx, card_rect.bottom - 78))
         surface.blit(help_text, help_rect)
         return actions
 
-    def render_settings_menu(self, surface, settings_values, return_label='Back'):
+    def render_settings_menu(self, surface, settings_values, return_label='Back', language='en'):
         """Render the settings screen with simple toggles."""
         self._draw_screen_background(surface, variant='settings')
-        card_rect = self._card_rect(height=610)
+        card_rect = self._card_rect(height=680)
         self._draw_card(surface, card_rect)
         self._draw_header(
             surface,
             card_rect,
-            'Control Panel',
-            'Settings',
-            'Adjust your adventure before entering the treasure island.',
+            self._t(language, 'settings_eyebrow'),
+            self._t(language, 'settings_title'),
+            self._t(language, 'settings_subtitle'),
         )
 
         actions = {}
         rows = [
-            ('music', 'Music'),
-            ('sfx', 'SFX'),
-            ('hints', 'Hints'),
+            ('music', self._t(language, 'settings_music')),
+            ('sfx', self._t(language, 'settings_sfx')),
+            ('hints', self._t(language, 'settings_hints')),
         ]
         for index, (key, label) in enumerate(rows):
-            rect = pygame.Rect(card_rect.x + 32, card_rect.y + 184 + index * 72, card_rect.width - 64, 56)
+            rect = pygame.Rect(card_rect.x + 32, card_rect.y + 184 + index * 68, card_rect.width - 64, 54)
             actions[f'toggle_{key}'] = self._draw_switch_row(surface, rect, label, settings_values[key])
 
-        section_text = self.font_small.render('Quick Actions', True, YELLOW)
-        section_rect = section_text.get_rect(center=(card_rect.centerx, card_rect.y + 410))
-        surface.blit(section_text, section_rect)
+        language_rect = pygame.Rect(card_rect.x + 32, card_rect.y + 390, card_rect.width - 64, 54)
+        language_value = self._t(language, f'language_{settings_values.get("language", "en")}', settings_values.get('language', 'en'))
+        actions['cycle_language'] = self._draw_value_row(surface, language_rect, self._t(language, 'settings_language'), language_value)
 
-        back_rect = pygame.Rect(card_rect.x + 32, card_rect.y + 440, card_rect.width - 64, 48)
-        save_rect = pygame.Rect(card_rect.x + 32, card_rect.y + 498, card_rect.width - 64, 48)
-        quit_rect = pygame.Rect(card_rect.x + 32, card_rect.y + 556, card_rect.width - 64, 42)
+        manual_rect = pygame.Rect(card_rect.x + 32, card_rect.y + 458, card_rect.width - 64, 46)
+        actions['settings_manual'] = self._draw_button(surface, manual_rect, self._t(language, 'manual_button'), variant='default', small=True)
+
+        back_rect = pygame.Rect(card_rect.x + 32, card_rect.y + 526, card_rect.width - 64, 46)
+        save_rect = pygame.Rect(card_rect.x + 32, card_rect.y + 582, card_rect.width - 64, 46)
+        quit_rect = pygame.Rect(card_rect.x + 32, card_rect.y + 636, card_rect.width - 64, 40)
         actions['settings_back'] = self._draw_button(surface, back_rect, return_label, variant='secondary', small=True)
-        actions['settings_save'] = self._draw_button(surface, save_rect, 'Save & Return', variant='primary', small=True)
-        actions['settings_quit'] = self._draw_button(surface, quit_rect, 'Back To Start', variant='secondary', small=True)
+        actions['settings_save'] = self._draw_button(surface, save_rect, self._t(language, 'save_return'), variant='primary', small=True)
+        actions['settings_quit'] = self._draw_button(surface, quit_rect, self._t(language, 'back_to_start'), variant='secondary', small=True)
         return actions
 
-    def render_game_hud(self, surface, player, opponent=None, round_time=120.0):
+    def render_game_hud(self, surface, player, opponent=None, round_time=120.0, language='en'):
         """Render heads-up display during gameplay."""
         hud_rect = pygame.Rect(0, 0, SCREEN_WIDTH, HUD_HEIGHT)
         hud_surface = pygame.Surface(hud_rect.size, pygame.SRCALPHA)
@@ -620,9 +908,9 @@ class UIManager:
         time_rect = time_text.get_rect(center=timer_box.center)
         surface.blit(time_text, time_rect)
 
-        self._draw_player_status(surface, player, 20, 14)
+        self._draw_player_status(surface, player, 20, 14, language=language)
         if opponent:
-            self._draw_player_status(surface, opponent, SCREEN_WIDTH - 240, 14)
+            self._draw_player_status(surface, opponent, SCREEN_WIDTH - 240, 14, language=language)
 
         fullscreen_rect = pygame.Rect(timer_box.right + 18, 18, 52, 38)
         settings_rect = pygame.Rect(fullscreen_rect.right + 10, 18, 52, 38)
@@ -630,7 +918,7 @@ class UIManager:
         self._draw_icon_button(surface, settings_rect, 'SET')
         return {'fullscreen': fullscreen_rect, 'settings': settings_rect}
 
-    def _draw_player_status(self, surface, player, x, y):
+    def _draw_player_status(self, surface, player, x, y, language='en'):
         """Draw individual player status panel."""
         panel_width = 240
         panel_height = 56
@@ -639,7 +927,7 @@ class UIManager:
         pygame.draw.rect(surface, (36, 36, 40), panel_rect, border_radius=14)
         pygame.draw.rect(surface, player.color, panel_rect, 2, border_radius=14)
 
-        name_text = self.font_small.render(self._get_player_label(player), True, player.color)
+        name_text = self._render_text(self.font_small, self.get_actor_label(player, language=language), player.color)
         surface.blit(name_text, (x + 12, y + 8))
         self._draw_effect_badges(surface, player, x + panel_width - 86, y + 8)
 
@@ -648,14 +936,14 @@ class UIManager:
 
         hints_found = max(0, player.current_hint_level + 1)
         if getattr(player, 'found_treasure', False):
-            treasure_text = self.font_micro.render("TREASURE", True, YELLOW)
+            treasure_text = self._render_text(self.font_micro, self._t(language, 'hud_treasure'), YELLOW)
             treasure_rect = treasure_text.get_rect(midleft=(x + 60, y + 42))
             surface.blit(treasure_text, treasure_rect)
         else:
-            self._draw_key_chip(surface, x + 60, y + 31, hints_found)
+            self._draw_key_chip(surface, x + 60, y + 31, hints_found, language=language)
 
         if player.dig_cooldown > 0:
-            cooldown_text = self.font_tiny.render(f"Recovering {player.dig_cooldown:.1f}s", True, YELLOW)
+            cooldown_text = self._render_text(self.font_tiny, f"{self._t(language, 'hud_recovering')} {player.dig_cooldown:.1f}s", YELLOW)
             cooldown_rect = cooldown_text.get_rect(topright=(x + panel_width - 12, y + 34))
             surface.blit(cooldown_text, cooldown_rect)
 
@@ -671,11 +959,11 @@ class UIManager:
             rect = pygame.Rect(x + index * 42, y, 38, 22)
             pygame.draw.rect(surface, (25, 25, 30), rect, border_radius=8)
             pygame.draw.rect(surface, color, rect, 1, border_radius=8)
-            text = self.font_micro.render(f"{label}", True, color)
+            text = self._render_text(self.font_micro, f"{label}", color)
             text_rect = text.get_rect(center=rect.center)
             surface.blit(text, text_rect)
 
-    def render_blind_overlay(self, surface, rect, actor):
+    def render_blind_overlay(self, surface, rect, actor, language='en'):
         """Render a dark view overlay for a blinded actor."""
         if not getattr(actor, 'is_blinded', False):
             return
@@ -686,17 +974,17 @@ class UIManager:
         for x in range(-rect.height, rect.width, 48):
             pygame.draw.line(overlay, (70, 45, 120, 90), (x, 0), (x + rect.height, rect.height), 3)
 
-        label = self.font_medium.render('BLINDED', True, (190, 150, 255))
+        label = self._render_text(self.font_medium, self._t(language, 'blind_overlay'), (190, 150, 255))
         label_rect = label.get_rect(center=(rect.width // 2, rect.height // 2))
         overlay.blit(label, label_rect)
 
-        time_text = self.font_tiny.render(f"{getattr(actor, 'blind_time', 0.0):.1f}s", True, WHITE)
+        time_text = self._render_text(self.font_tiny, f"{getattr(actor, 'blind_time', 0.0):.1f}s", WHITE)
         time_rect = time_text.get_rect(center=(rect.width // 2, rect.height // 2 + 34))
         overlay.blit(time_text, time_rect)
 
         surface.blit(overlay, rect.topleft)
 
-    def render_clue_box(self, surface, clue_text, rect=None, label="CLUE", player=None):
+    def render_clue_box(self, surface, clue_text, rect=None, label=None, player=None, language='en'):
         """Render the hint/clue display box."""
         if rect is None:
             box_height = CLUE_BOX_HEIGHT
@@ -714,7 +1002,8 @@ class UIManager:
         pygame.draw.rect(surface, (86, 57, 28), header_rect, border_radius=12)
         pygame.draw.rect(surface, (211, 173, 92), header_rect, 1, border_radius=12)
 
-        label_text = self.font_micro.render(f"{label}", True, YELLOW)
+        header_label = label if label is not None else self._t(language, 'clue_label')
+        label_text = self._render_text(self.font_micro, f"{header_label}", YELLOW)
         label_rect = label_text.get_rect(center=header_rect.center)
         surface.blit(label_text, label_rect)
 
@@ -723,7 +1012,7 @@ class UIManager:
         max_width = outer_rect.width - 32
         lines = self._wrap_text(clue_text, self.font_tiny, max_width)
         for index, line in enumerate(lines[:2]):
-            clue = self.font_tiny.render(line, True, (248, 236, 207))
+            clue = self._render_text(self.font_tiny, line, (248, 236, 207))
             surface.blit(clue, (outer_rect.x + 18, text_y + index * 18))
 
     def render_progress_bar(self, surface, player1, player2):
@@ -747,7 +1036,7 @@ class UIManager:
         pygame.draw.rect(surface, (100, 149, 237), p2_rect)
         pygame.draw.rect(surface, WHITE, pygame.Rect(start_x + bar_width + gap, y, bar_width, bar_height), 2)
 
-    def render_game_over(self, surface, winner, reason="", mode_label=""):
+    def render_game_over(self, surface, winner, reason="", mode_label="", language='en'):
         """Render game over screen."""
         self._draw_screen_background(surface, variant='result')
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
@@ -756,12 +1045,12 @@ class UIManager:
 
         card_rect = self._card_rect(width=520, height=430)
         self._draw_card(surface, card_rect)
-        self._draw_header(surface, card_rect, 'Round Complete', winner, mode_label)
+        self._draw_header(surface, card_rect, self._t(language, 'game_over_eyebrow'), winner, mode_label)
 
         if reason:
             lines = self._wrap_text(reason, self.font_small, card_rect.width - 70)
             for index, line in enumerate(lines[:3]):
-                reason_text = self.font_small.render(line, True, WHITE)
+                reason_text = self._render_text(self.font_small, line, WHITE)
                 reason_rect = reason_text.get_rect(center=(card_rect.centerx, card_rect.y + 196 + index * 24))
                 surface.blit(reason_text, reason_rect)
 
@@ -769,13 +1058,13 @@ class UIManager:
         mode_rect = pygame.Rect(card_rect.x + 38, card_rect.bottom - 62, (card_rect.width - 86) // 2, 44)
         menu_rect = pygame.Rect(mode_rect.right + 10, card_rect.bottom - 62, (card_rect.width - 86) // 2, 44)
         actions = {
-            'end_rematch': self._draw_button(surface, rematch_rect, 'Play Again', variant='primary'),
-            'end_mode_select': self._draw_button(surface, mode_rect, 'Mode Select', variant='secondary', small=True),
-            'end_menu': self._draw_button(surface, menu_rect, 'Main Menu', variant='secondary', small=True),
+            'end_rematch': self._draw_button(surface, rematch_rect, self._t(language, 'play_again'), variant='primary'),
+            'end_mode_select': self._draw_button(surface, mode_rect, self._t(language, 'mode_select'), variant='secondary', small=True),
+            'end_menu': self._draw_button(surface, menu_rect, self._t(language, 'main_menu'), variant='secondary', small=True),
         }
         return actions
 
-    def render_pause_overlay(self, surface):
+    def render_pause_overlay(self, surface, language='en'):
         """Render pause overlay."""
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
         overlay.fill((10, 7, 5, 176))
@@ -783,21 +1072,86 @@ class UIManager:
 
         card_rect = self._card_rect(width=500, height=340)
         self._draw_card(surface, card_rect)
-        self._draw_header(surface, card_rect, 'Rest Point', 'Paused', 'Take a breath, then resume or restart the current hunt.')
+        self._draw_header(surface, card_rect, self._t(language, 'pause_eyebrow'), self._t(language, 'pause_title'), self._t(language, 'pause_subtitle'))
 
         resume_button = pygame.Rect(card_rect.x + 34, card_rect.bottom - 122, card_rect.width - 68, 48)
         restart_button = pygame.Rect(card_rect.x + 34, card_rect.bottom - 64, (card_rect.width - 78) // 2, 44)
         menu_button = pygame.Rect(restart_button.right + 10, card_rect.bottom - 64, (card_rect.width - 78) // 2, 44)
         actions = {
-            'pause_resume': self._draw_button(surface, resume_button, 'Resume', variant='primary', small=True),
-            'pause_restart': self._draw_button(surface, restart_button, 'Restart', variant='secondary', small=True),
-            'pause_menu': self._draw_button(surface, menu_button, 'Mode Select', variant='secondary', small=True),
+            'pause_resume': self._draw_button(surface, resume_button, self._t(language, 'resume'), variant='primary', small=True),
+            'pause_restart': self._draw_button(surface, restart_button, self._t(language, 'restart'), variant='secondary', small=True),
+            'pause_menu': self._draw_button(surface, menu_button, self._t(language, 'mode_select'), variant='secondary', small=True),
         }
         return actions
 
+    def render_manual_screen(self, surface, language='en'):
+        """Render a compact manual/help screen from Settings."""
+        self._draw_screen_background(surface, variant='settings')
+        card_rect = self._card_rect(width=980, height=660)
+        self._draw_card(surface, card_rect)
+        self._draw_header(
+            surface,
+            card_rect,
+            self._t(language, 'manual_eyebrow'),
+            self._t(language, 'manual_title'),
+            self._t(language, 'manual_subtitle'),
+        )
+
+        left_x = card_rect.x + 28
+        right_x = card_rect.centerx + 10
+        top_y = card_rect.y + 164
+        block_width = (card_rect.width - 76) // 2
+        upper_height = 176
+        lower_height = 156
+
+        self._manual_block(
+            surface,
+            pygame.Rect(left_x, top_y, block_width, upper_height),
+            self._t(language, 'manual_objective_title'),
+            [
+                self._t(language, 'manual_objective_1'),
+                self._t(language, 'manual_objective_2'),
+                self._t(language, 'manual_objective_3'),
+            ],
+        )
+        self._manual_block(
+            surface,
+            pygame.Rect(right_x, top_y, block_width, upper_height),
+            self._t(language, 'manual_rules_title'),
+            [
+                self._t(language, 'manual_rules_1'),
+                self._t(language, 'manual_rules_2'),
+                self._t(language, 'manual_rules_3'),
+                self._t(language, 'manual_rules_4'),
+            ],
+        )
+        self._manual_block(
+            surface,
+            pygame.Rect(left_x, top_y + 192, block_width, lower_height),
+            self._t(language, 'manual_controls_title'),
+            [
+                self._t(language, 'manual_controls_1'),
+                self._t(language, 'manual_controls_2'),
+                self._t(language, 'manual_controls_3'),
+            ],
+        )
+        self._manual_block(
+            surface,
+            pygame.Rect(right_x, top_y + 192, block_width, lower_height),
+            self._t(language, 'manual_skills_title'),
+            [
+                self._t(language, 'manual_skills_1'),
+                self._t(language, 'manual_skills_2'),
+                self._t(language, 'manual_skills_3'),
+            ],
+        )
+
+        back_rect = pygame.Rect(card_rect.x + 34, card_rect.bottom - 60, card_rect.width - 68, 42)
+        return {'manual_back': self._draw_button(surface, back_rect, self._t(language, 'manual_close'), variant='primary', small=True)}
+
     def render_skill_bar(self, surface, player, x=10, y=100):
         """Render player's skill cooldown indicators."""
-        skills_text = self.font_tiny.render('SKILLS:', True, WHITE)
+        skills_text = self._render_text(self.font_tiny, 'SKILLS:', WHITE)
         surface.blit(skills_text, (x, y))
 
         skill_y = y + 25
@@ -812,6 +1166,6 @@ class UIManager:
                 status += ' [Ready]'
                 color = GREEN
 
-            skill_text = self.font_tiny.render(status, True, color)
+            skill_text = self._render_text(self.font_tiny, status, color)
             surface.blit(skill_text, (x, skill_y))
             skill_y += 20

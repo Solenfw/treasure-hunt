@@ -145,6 +145,16 @@ class RuntimeSmokeTests(unittest.TestCase):
 
         self.game._activate_ui_action('toggle_hints')
         self.assertFalse(self.game.settings_values['hints'])
+        self.game._activate_ui_action('cycle_language')
+        self.assertEqual(self.game.settings_values['language'], 'vi')
+        self.game.render()
+        self.assertIn('settings_manual', self.game.ui_actions)
+        self.game._activate_ui_action('settings_manual')
+        self.assertTrue(self.game.game_state.is_manual())
+        self.game.render()
+        self.assertIn('manual_back', self.game.ui_actions)
+        self.game._activate_ui_action('manual_back')
+        self.assertTrue(self.game.game_state.is_settings())
         self.game._activate_ui_action('settings_save')
         self.assertTrue(self.game.game_state.is_menu())
 
@@ -154,7 +164,10 @@ class RuntimeSmokeTests(unittest.TestCase):
         self.assertTrue(self.game.game_state.is_settings())
         self.game._activate_ui_action('settings_back')
         self.assertTrue(self.game.game_state.is_playing())
-        self.assertEqual(self.game._get_clue_text_for_actor(self.game.player1, self.game.map1), 'Hints disabled in settings.')
+        self.assertEqual(
+            self.game._get_clue_text_for_actor(self.game.player1, self.game.map1),
+            self.game.ui.translate(self.game.settings_values['language'], 'clue_disabled'),
+        )
 
     def test_audio_backend_tolerates_missing_assets(self):
         self.assertIn(self.game.audio.play_music('menu'), (True, False))
@@ -245,6 +258,21 @@ class RuntimeSmokeTests(unittest.TestCase):
         self.assertTrue(self.game.map2.is_walkable(self.game.player2.col, self.game.player2.row))
         self.assertTrue(self.game.player1.last_skill_result or self.game.player2.last_skill_result)
         self.assertIn(self.game.game_state.current_state, (self.game.game_state.PLAYING, self.game.game_state.GAME_OVER))
+
+    def test_gameplay_and_end_screen_text_localize_with_language(self):
+        self.game.settings_values['language'] = 'vi'
+        self._start_mode(GameMode.EVE)
+
+        clue_text = self.game._get_clue_text_for_actor(self.game.player1, self.game.map1)
+        self.assertTrue(clue_text.startswith('Gợi ý 1 ở'))
+
+        self.game._end_game('AI 2 Wins!', 'Secured the treasure after collecting all 3 keys.')
+        self.assertEqual(self.game._localized_winner_text(self.game.game_state.winner), 'Máy 2 Thắng!')
+        self.assertEqual(
+            self.game._localized_reason_text(self.game.game_state.message),
+            'Đã lấy được kho báu sau khi thu thập đủ 3 chìa.',
+        )
+        self.assertEqual(self.game._localized_mode_label(), 'EvE Thường')
 
     def test_restart_shortcut_keeps_current_mode_and_resets_round(self):
         self._start_mode(GameMode.PVE_HARD)
