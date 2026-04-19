@@ -1,213 +1,423 @@
-# Treasure Hunt (Pygame)
+# Treasure Hunt
 
-Treasure Hunt is a local competitive digging game built with Python and Pygame.
-The project supports:
+Treasure Hunt là game desktop local viết bằng **Python + Pygame**. Người chơi thi đấu trên lưới `20x20`, đào theo chuỗi gợi ý `Key 1 -> Key 2 -> Key 3 -> Treasure`, né bomb, dùng skill để phá nhịp đối thủ, và tận dụng địa hình có tường chắn.
 
-- `PvP`: 2 human players on one machine
-- `PvE`: 1 human player vs AI
-- `EvE`: 2 bots play automatically while you watch
+Project hiện là **Pygame desktop game**, không phải web game.
 
-The game is desktop Pygame, not a web game.
+## Tổng quan
 
-## Features
+Game hỗ trợ 3 chế độ:
 
-- Main flow: `Start -> Mode -> Difficulty -> Match -> End`
-- 20x20 grid map, tile size 32px
-- Fair mirrored layout between both sides
-- 3-key chain before treasure can be claimed
-- Random bombs and walls
-- Valid path generation so maps stay playable
-- Bot pathfinding with A*
-- Skills with real effects: `Freeze`, `Blind`, `Extra Hint`
-- Split-screen gameplay UI
-- Fullscreen toggle
-- Menu and gameplay audio routing
+- `PvP`: 2 người chơi local trên cùng máy
+- `PvE`: 1 người chơi đấu AI
+- `EvE`: 2 bot tự chơi để quan sát và test balance
 
-## Requirements
+Flow hiện tại của game:
 
-- Python 3.11 recommended
-- `pygame`
+`Start -> Mode Select -> Difficulty Select -> Match -> End`
 
-Install dependencies:
+Ngoài màn chơi chính, game còn có:
 
-```bash
-pip install -r requirements.txt
-```
+- `Settings`
+- `Manual`
+- chuyển ngôn ngữ `English / Tiếng Việt`
+- nhạc nền và hiệu ứng âm thanh
+- fullscreen
 
-Run the game:
+## Gameplay
 
-```bash
-python main.py
-```
+### Luật cốt lõi
 
-## How To Play
+- Map là grid `20x20`
+- `Tile size = 32px`
+- Mỗi bên có layout tương đương để giữ tính công bằng
+- Treasure bị khóa cho đến khi đã thu thập đủ `3 key`
+- Key phải lấy đúng thứ tự:
+  - `Key 1`
+  - `Key 2`
+  - `Key 3`
+  - sau đó mới được đào `Treasure`
+- Đào sai ô sẽ bị `cooldown / stun`
+- Đào trúng bomb sẽ mất `1 HP`
+- Hết HP là thua
+- Hết thời gian là hòa
+- Tường là vật cản, người chơi và bot đều không được đi xuyên qua
 
-Each match takes place on a `20x20` grid.
+### Điều kiện thắng
 
-Your objective is:
+Một bên thắng khi:
 
-1. Find `Key 1`
-2. Find `Key 2`
-3. Find `Key 3`
-4. Dig the treasure
+- đã lấy đủ `3 key`
+- và đào được `Treasure`
 
-Important rules:
+Hoặc khi đối thủ:
 
-- The treasure is locked until all 3 keys are collected in order.
-- Digging the wrong tile causes a short cooldown / stun.
-- Digging a bomb removes `1 HP`.
-- If HP reaches `0`, that side loses.
-- If the timer reaches `0`, the round ends in a draw.
-- Walls block movement for both players and bots.
+- mất hết HP
 
-## Skills
+## Skill System
 
-Each skill has cooldown and works differently:
+Game hiện có 3 skill chính:
 
-- `Freeze`: freezes the opponent for a short time
-- `Blind`: limits the opponent's information for a short time
-- `Extra Hint`: reveals extra information about your next target
+### Freeze
 
-`Freeze` and `Blind` target the opponent.
-`Extra Hint` helps the player who casts it.
+- Đóng băng đối thủ trong vài giây
+- Trong thời gian hiệu lực, đối thủ không thể di chuyển hoặc hành động bình thường
 
-## Game Modes
+### Blind
+
+- Hạn chế thông tin của đối thủ trong thời gian ngắn
+- Với người chơi: clue bị che
+- Với bot: hành vi kém tối ưu hơn trong lúc effect còn hiệu lực
+
+### Extra Hint
+
+- Reveal thêm thông tin về mục tiêu hợp lệ tiếp theo
+
+### Quy tắc chung của skill
+
+- Mỗi skill có cooldown riêng
+- Mỗi skill có duration riêng
+- Skill phải có target hợp lệ theo từng loại
+
+## Chế độ chơi
 
 ### PvP
 
-Two human players play locally on the same machine.
+2 người chơi local thi đấu trên cùng máy.
 
-- Both sides follow the same rules
-- Both sides get equivalent map layout
-- Best mode for direct competitive play
+Phù hợp để:
+
+- đấu trực tiếp người với người
+- test control
+- test skill đối kháng
 
 ### PvE
 
-One human player fights one bot.
+1 người chơi đấu AI.
 
-Difficulty levels:
+Các mức độ khó:
 
-- `Easy`: slower, less efficient, more mistakes
-- `Normal`: stable A* behavior with some delay and randomness
-- `Hard`: more optimal pathing, better target choice, fewer mistakes
+- `Easy`: di chuyển chậm hơn, kém tối ưu hơn, sai nhiều hơn
+- `Normal`: ổn định, vẫn có độ trễ và ngẫu nhiên vừa phải
+- `Hard`: tối ưu hơn, ít sai hơn, dùng pathfinding tốt hơn
 
 ### EvE
 
-Two bots play automatically.
+2 bot tự chơi với nhau.
 
-- Useful for observing AI behavior
-- Good for checking balance between difficulty levels and map generation
+Phù hợp để:
 
-## Controls
+- quan sát hành vi AI
+- xem pacing trận đấu
+- kiểm tra balance map và difficulty
 
-### Global
+## Điều khiển
 
-- `F11`: toggle fullscreen
-- `Alt + Enter`: toggle fullscreen
-- `ESC`: leave fullscreen first, otherwise close/exit current run
+### Phím chung
 
-### Menu
+- `F11`: bật / tắt fullscreen
+- `Alt + Enter`: bật / tắt fullscreen
+- `ESC`: thoát fullscreen trước; nếu không ở fullscreen thì thoát màn hiện tại tùy ngữ cảnh
 
-- `Enter`: confirm / continue
-- `1 / 2 / 3`: quick-select mode or difficulty where available
-- Mouse click also works on menu buttons
+### Trong menu
 
-### In Match
+- `Enter`: xác nhận
+- `Space`: xác nhận ở một số màn
+- `1 / 2 / 3`: chọn nhanh mode hoặc difficulty ở màn tương ứng
+- Có thể bấm chuột trực tiếp vào button
+
+### Trong trận
 
 - `Tab`: pause / resume
-- `F10`: open settings
-- `R`: restart current match
+- `F10`: mở settings
+- `R`: restart ván hiện tại
 
-### PvP Controls
+### PvP
 
-Player 1:
+#### Player 1
 
-- `W / A / S / D`: move
-- `Space` or `Left Ctrl`: dig
+- `W / A / S / D`: di chuyển
+- `Space` hoặc `Left Ctrl`: đào
 - `Q`: Freeze
 - `E`: Blind
 - `F`: Extra Hint
 
-Player 2:
+#### Player 2
 
-- `Arrow Keys`: move
-- `Enter`, `Numpad Enter`, or `Right Ctrl`: dig
+- `Arrow Keys`: di chuyển
+- `Enter`, `Numpad Enter`, hoặc `Right Ctrl`: đào
 - `I`: Freeze
 - `O`: Blind
 - `P`: Extra Hint
 
-### PvE Controls
+### PvE
 
-Human player:
+Người chơi:
 
-- `W / A / S / D` or `Arrow Keys`: move
-- `Space`, `Enter`, `Left Ctrl`, or `Numpad Enter`: dig
+- `W / A / S / D` hoặc `Arrow Keys`: di chuyển
+- `Space`, `Enter`, `Left Ctrl`, hoặc `Numpad Enter`: đào
 - `Q`: Freeze bot
 - `E`: Blind bot
 - `F`: Extra Hint
 
-### EvE Controls
+### EvE
 
-No direct player control during movement.
+Không có điều khiển di chuyển trực tiếp cho người chơi.
 
-Useful observer controls:
+Các phím hữu ích:
 
 - `Tab`: pause / resume
 - `R`: restart
 - `F10`: settings
 - `F11`: fullscreen
 
-## Audio Assets
+## UI hiện có
 
-Background music is loaded from:
+Game đang có đầy đủ các màn sau:
 
-- `assets/music/menu.ogg` or `assets/music/menu.mp3`
-- `assets/music/gameplay.ogg` or `assets/music/gameplay.mp3`
-- `assets/music/result.ogg` or `assets/music/result.mp3`
+- `Start`
+- `Mode Select`
+- `Difficulty Select`
+- `Settings`
+- `Manual`
+- `Gameplay`
+- `Pause`
+- `Game Over`
 
-Sound effects are loaded from `assets/sounds/`.
+### Settings
 
-If a file is missing, the game should continue running without crashing.
+Hiện hỗ trợ các tùy chọn:
 
-## Project Structure
+- `Music`
+- `SFX`
+- `Hints`
+- `Language`
+- `Manual`
 
-```text
-treasure-hunt/
-|-- assets/
-|   |-- music/
-|   |-- sounds/
-|-- scripts/
-|-- src/
-|   |-- audio_manager.py
-|   |-- bot_ai.py
-|   |-- game.py
-|   |-- game_mode.py
-|   |-- game_state.py
-|   |-- map.py
-|   |-- player.py
-|   |-- settings.py
-|   |-- skills.py
-|   `-- ui_manager.py
-|-- tests/
-|-- main.py
-|-- requirements.txt
-`-- README.md
+### Manual
+
+Manual mở từ `Settings`, dùng để hiển thị:
+
+- mục tiêu game
+- luật chơi
+- điều khiển
+- skill
+
+### Ngôn ngữ
+
+UI hiện hỗ trợ:
+
+- `English`
+- `Tiếng Việt`
+
+## AI và map
+
+### AI
+
+Bot sử dụng pathfinding hợp lệ để tìm đường trong map có tường.
+
+Hiện game đã có:
+
+- A* pathfinding
+- hành vi khác nhau theo difficulty
+- dùng skill trong các mode có bot
+
+### Map
+
+Map có:
+
+- chuỗi hint / key
+- treasure bị khóa
+- bomb
+- tường ngẫu nhiên
+- kiểm tra để đảm bảo vẫn còn đường đi hợp lệ
+
+## Audio
+
+### Nhạc nền
+
+Game tự tìm nhạc nền theo các key sau:
+
+- `assets/music/menu.ogg` hoặc `assets/music/menu.mp3`
+- `assets/music/gameplay.ogg` hoặc `assets/music/gameplay.mp3`
+- `assets/music/result.ogg` hoặc `assets/music/result.mp3`
+
+### Sound effects
+
+SFX được load từ `assets/sounds/`.
+
+Project hiện đã có placeholder SFX cho:
+
+- `ui_click.wav`
+- `ui_confirm.wav`
+- `ui_back.wav`
+- `pause.wav`
+- `dig.wav`
+- `locked.wav`
+- `bomb.wav`
+- `key.wav`
+- `treasure.wav`
+- `freeze.wav`
+- `blind.wav`
+- `extra_hint.wav`
+- `win.wav`
+- `lose.wav`
+
+Nếu thiếu asset âm thanh, game vẫn phải chạy mà không crash.
+
+## Cài đặt và chạy
+
+### Yêu cầu
+
+- Python `3.11` được khuyến nghị
+- `pygame >= 2.1.0`
+
+### Cài thư viện
+
+```bash
+pip install -r requirements.txt
 ```
 
-## Verification
+### Chạy game
 
-Compile check:
+```bash
+python main.py
+```
+
+## Kiểm tra
+
+### Compile check
 
 ```bash
 python -m compileall src
 ```
 
-Run tests:
+### Chạy test
 
 ```bash
 python -m unittest discover -s tests
 ```
 
+### Test hiện có
+
+- `tests/test_gameplay_logic.py`
+  - map rules
+  - locked treasure
+  - wall blocking
+  - skill effects
+  - input regressions
+- `tests/test_runtime_smoke.py`
+  - menu flow
+  - start match theo mode
+  - settings / language / manual
+  - restart / end flow
+  - gameplay runtime smoke
+
+## Cấu trúc dự án
+
+```text
+treasure-hunt/
+|-- assets/
+|   |-- images/
+|   |-- music/
+|   `-- sounds/
+|-- scripts/
+|   `-- generate_placeholder_sfx.py
+|-- src/
+|   |-- __init__.py
+|   |-- audio_manager.py
+|   |-- bot_ai.py
+|   |-- entities.py
+|   |-- game.py
+|   |-- game_mode.py
+|   |-- game_state.py
+|   |-- hint_system.py
+|   |-- map.py
+|   |-- player.py
+|   |-- settings.py
+|   |-- skills.py
+|   |-- ui.py
+|   |-- ui_manager.py
+|   `-- utils.py
+|-- tests/
+|   |-- test_gameplay_logic.py
+|   `-- test_runtime_smoke.py
+|-- main.py
+|-- settings.py
+|-- README.md
+|-- requirements.txt
+|-- REFACTORING_SUMMARY.md
+`-- RULES.md
+```
+
+## Vai trò các file chính
+
+### Gameplay
+
+- `src/game.py`
+  - game loop
+  - event routing
+  - state flow
+  - render gameplay
+
+- `src/game_state.py`
+  - state machine
+  - round timer
+
+- `src/game_mode.py`
+  - enum mode và difficulty
+
+- `src/map.py`
+  - sinh map
+  - wall / bomb / hint / treasure
+  - dig logic
+
+- `src/player.py`
+  - human player movement
+  - digging
+  - HP
+  - cooldown
+  - skill use
+
+- `src/bot_ai.py`
+  - AI behavior
+  - difficulty balance
+  - pathfinding
+  - bot skill behavior
+
+- `src/skills.py`
+  - hệ thống skill dùng chung
+
+### UI và audio
+
+- `src/ui_manager.py`
+  - menu
+  - HUD
+  - settings
+  - manual
+  - end screen
+  - localization
+
+- `src/audio_manager.py`
+  - music routing
+  - SFX playback
+  - fail-safe audio handling
+
+### Module phụ / legacy
+
+- `src/entities.py`
+- `src/hint_system.py`
+- `src/ui.py`
+- `src/utils.py`
+
+Các file này vẫn còn trong repo, nhưng gameplay hiện tại tập trung chủ yếu ở các module chính bên trên.
+
+## Ghi chú
+
+- Project là desktop game, không phải web game
+- README này phản ánh trạng thái hiện tại của repo sau các bước hoàn thiện gameplay, UI flow, audio, localization và test
+- Nếu sửa gameplay hoặc control map, cần cập nhật lại README để tránh lệch tài liệu
+
 ## License
 
-MIT
+Chưa khai báo license riêng trong repo.
