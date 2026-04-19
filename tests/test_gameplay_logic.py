@@ -193,13 +193,40 @@ class GameplayLogicTests(unittest.TestCase):
         player2 = Player(0, 0, player_id=2)
         game = object.__new__(Game)
         game._is_human = lambda actor: isinstance(actor, Player)
+        game._is_key_binding_held = Game._is_key_binding_held.__get__(game, Game)
         game._poll_pvp_player1_movement = Game._poll_pvp_player1_movement.__get__(game, Game)
         game._update_actor = Game._update_actor.__get__(game, Game)
         game.game_state = type('State', (), {'game_mode': GameMode.PVP})()
+        game.held_scancodes = set()
 
         class PressedState:
             def __getitem__(self, key):
                 return 1 if key == pygame.K_d else 0
+
+        original_get_pressed = pygame.key.get_pressed
+        pygame.key.get_pressed = lambda: PressedState()
+        try:
+            game._update_actor(player1, game_map, player2, game_map, 0.1)
+        finally:
+            pygame.key.get_pressed = original_get_pressed
+
+        self.assertEqual((player1.col, player1.row), (1, 0))
+
+    def test_pvp_player1_polled_scancode_movement_fallback(self):
+        game_map = Map(spawn_positions=[(0, 0)])
+        player1 = Player(0, 0, player_id=1)
+        player2 = Player(0, 0, player_id=2)
+        game = object.__new__(Game)
+        game._is_human = lambda actor: isinstance(actor, Player)
+        game._is_key_binding_held = Game._is_key_binding_held.__get__(game, Game)
+        game._poll_pvp_player1_movement = Game._poll_pvp_player1_movement.__get__(game, Game)
+        game._update_actor = Game._update_actor.__get__(game, Game)
+        game.game_state = type('State', (), {'game_mode': GameMode.PVP})()
+        game.held_scancodes = {32}
+
+        class PressedState:
+            def __getitem__(self, key):
+                return 0
 
         original_get_pressed = pygame.key.get_pressed
         pygame.key.get_pressed = lambda: PressedState()
@@ -227,6 +254,21 @@ class GameplayLogicTests(unittest.TestCase):
                 self.assertTrue(map1.get_tile(*map1.hint_positions[0]).visible)
                 self.assertNotIn(map1.treasure_pos, map1.wall_positions)
                 self.assertTrue(all(position not in map1.wall_positions for position in map1.hint_positions.values()))
+
+    def test_pvp_and_pve_use_distinct_competitor_layouts_but_eve_stays_shared(self):
+        game = Game()
+
+        game.game_state.set_game_mode(GameMode.PVP)
+        game._start_game()
+        self.assertFalse(game._maps_share_cheatable_layout(game.map1, game.map2))
+
+        game.game_state.set_game_mode(GameMode.PVE_NORMAL)
+        game._start_game()
+        self.assertFalse(game._maps_share_cheatable_layout(game.map1, game.map2))
+
+        game.game_state.set_game_mode(GameMode.EVE)
+        game._start_game()
+        self.assertTrue(game._maps_share_cheatable_layout(game.map1, game.map2))
 
     def test_audio_manager_accepts_mp3_music_fallback(self):
         with tempfile.TemporaryDirectory() as temp_dir:
