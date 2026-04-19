@@ -246,23 +246,6 @@ Game tự tìm nhạc nền theo các key sau:
 
 SFX được load từ `assets/sounds/`.
 
-Project hiện đã có placeholder SFX cho:
-
-- `ui_click.wav`
-- `ui_confirm.wav`
-- `ui_back.wav`
-- `pause.wav`
-- `dig.wav`
-- `locked.wav`
-- `bomb.wav`
-- `key.wav`
-- `treasure.wav`
-- `freeze.wav`
-- `blind.wav`
-- `extra_hint.wav`
-- `win.wav`
-- `lose.wav`
-
 Nếu thiếu asset âm thanh, game vẫn phải chạy mà không crash.
 
 ## Cài đặt và chạy
@@ -349,45 +332,6 @@ treasure-hunt/
 |-- REFACTORING_SUMMARY.md
 `-- RULES.md
 ```
-
-## Vai trò các file chính
-
-### Gameplay
-
-- `src/game.py`
-  - game loop
-  - event routing
-  - state flow
-  - render gameplay
-
-- `src/game_state.py`
-  - state machine
-  - round timer
-
-- `src/game_mode.py`
-  - enum mode và difficulty
-
-- `src/map.py`
-  - sinh map
-  - wall / bomb / hint / treasure
-  - dig logic
-
-- `src/player.py`
-  - human player movement
-  - digging
-  - HP
-  - cooldown
-  - skill use
-
-- `src/bot_ai.py`
-  - AI behavior
-  - difficulty balance
-  - pathfinding
-  - bot skill behavior
-
-- `src/skills.py`
-  - hệ thống skill dùng chung
-
 ### UI và audio
 
 - `src/ui_manager.py`
@@ -410,14 +354,7 @@ treasure-hunt/
 - `src/ui.py`
 - `src/utils.py`
 
-Các file này vẫn còn trong repo, nhưng gameplay hiện tại tập trung chủ yếu ở các module chính bên trên.
-
 ## Ghi chú
-
-- Project là desktop game, không phải web game
-- README này phản ánh trạng thái hiện tại của repo sau các bước hoàn thiện gameplay, UI flow, audio, localization và test
-- Nếu sửa gameplay hoặc control map, cần cập nhật lại README để tránh lệch tài liệu
-
+- Project được tạo từ ngôn ngữ Python và PyGame
 ## License
-
-Chưa khai báo license riêng trong repo.
+MIT
