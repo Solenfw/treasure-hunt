@@ -11,6 +11,7 @@ class GameState:
     MODE_SELECT = 'mode_select'
     DIFFICULTY_SELECT = 'difficulty_select'
     SETTINGS = 'settings'
+    MANUAL = 'manual'
     PLAYING = 'playing'
     PAUSED = 'paused'
     GAME_OVER = 'gameover'
@@ -52,6 +53,10 @@ class GameState:
     def is_settings(self):
         """Check if game is in settings state."""
         return self.current_state == self.SETTINGS
+
+    def is_manual(self):
+        """Check if game is in manual/help state."""
+        return self.current_state == self.MANUAL
     
     def is_game_over(self):
         """Check if game is over."""

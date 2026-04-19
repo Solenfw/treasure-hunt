@@ -1,5 +1,7 @@
 """Main game loop and state management."""
 
+import re
+
 import pygame
 
 from src.audio_manager import AudioManager
@@ -45,7 +47,7 @@ class Game:
         self.screen = None
         self.viewport_rect = pygame.Rect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
         self._apply_display_mode()
-        pygame.display.set_caption('Treasure Hunt - Truy Tim Kho Bau')
+        pygame.display.set_caption('Treasure Hunt - Truy Tìm Kho Báu')
         self.clock = pygame.time.Clock()
         self.running = True
         self.game_state = GameState()
@@ -66,9 +68,11 @@ class Game:
             'music': True,
             'sfx': True,
             'hints': True,
+            'language': 'en',
         }
         self.audio = AudioManager(self.settings_values)
         self.settings_return_state = GameState.MENU
+        self.manual_return_state = GameState.SETTINGS
         self.ui_actions = {}
 
     def _apply_display_mode(self):
@@ -135,6 +139,14 @@ class Game:
         """Apply the current settings toggles to the audio backend."""
         self.audio.sync_settings(self.settings_values)
 
+    def _ui_language(self):
+        """Return the active UI language code."""
+        return self.settings_values.get('language', 'en')
+
+    def _ui_text(self, key, default=None):
+        """Return one translated UI string."""
+        return self.ui.translate(self._ui_language(), key, default)
+
     def _desired_music_key(self):
         """Map the current state to the right background music track."""
         if self.game_state.is_playing() or self.game_state.is_paused():
@@ -171,9 +183,9 @@ class Game:
 
     def _play_ui_sound_for_action(self, action):
         """Choose an appropriate click/confirm/back sound for one UI action."""
-        if action.startswith('toggle_') or action in ('settings', 'fullscreen'):
+        if action.startswith('toggle_') or action in ('settings', 'fullscreen', 'cycle_language'):
             cue = 'ui_click'
-        elif action in ('back', 'home', 'settings_back', 'settings_quit', 'end_menu', 'end_mode_select', 'pause_menu'):
+        elif action in ('back', 'home', 'settings_back', 'settings_quit', 'manual_back', 'end_menu', 'end_mode_select', 'pause_menu'):
             cue = 'ui_back'
         else:
             cue = 'ui_confirm'
@@ -183,6 +195,10 @@ class Game:
         """Flip one settings flag and sync dependent systems."""
         self.settings_values[setting_name] = not self.settings_values[setting_name]
         self._sync_audio_preferences()
+
+    def _cycle_language(self):
+        """Toggle UI language between English and Vietnamese."""
+        self.settings_values['language'] = 'vi' if self._ui_language() == 'en' else 'en'
 
     def _is_human(self, actor):
         """Return True for human-controlled competitors."""
@@ -195,6 +211,10 @@ class Game:
     def _get_actor_name(self, actor):
         """Return a human-readable label for winners and HUD."""
         return getattr(actor, 'display_name', f"Player {actor.player_id}")
+
+    def _localized_actor_name(self, actor):
+        """Return the UI-localized actor name for the current language."""
+        return self.ui.get_actor_label(actor, language=self._ui_language())
 
     def _resolve_difficulty(self, mode):
         """Map a game mode to the appropriate bot difficulty."""
@@ -215,6 +235,15 @@ class Game:
             Difficulty.NORMAL: 'Normal',
             Difficulty.HARD: 'Hard',
         }[difficulty]
+
+    def _localized_difficulty_label(self, difficulty):
+        """Return the localized difficulty label used by the UI."""
+        key = {
+            Difficulty.EASY: 'option_easy',
+            Difficulty.NORMAL: 'option_normal',
+            Difficulty.HARD: 'option_hard',
+        }[difficulty]
+        return self._ui_text(key, self._difficulty_label(difficulty))
 
     def _sync_selected_mode(self):
         """Keep the menu highlight aligned with the active game mode."""
@@ -257,6 +286,21 @@ class Game:
             return f"EvE {self._difficulty_label(self.bot_difficulty)}"
         return self.MODE_LABELS.get(self.game_state.game_mode, 'Match')
 
+    def _localized_mode_label(self):
+        """Return a localized mode label for summary screens."""
+        game_mode = self.game_state.game_mode
+        if game_mode == GameMode.PVP:
+            return 'PvP'
+        if game_mode == GameMode.PVE_EASY:
+            return f"PvE {self._localized_difficulty_label(Difficulty.EASY)}"
+        if game_mode == GameMode.PVE_NORMAL:
+            return f"PvE {self._localized_difficulty_label(Difficulty.NORMAL)}"
+        if game_mode == GameMode.PVE_HARD:
+            return f"PvE {self._localized_difficulty_label(Difficulty.HARD)}"
+        if game_mode == GameMode.EVE:
+            return f"EvE {self._localized_difficulty_label(self.bot_difficulty)}"
+        return self._get_mode_label()
+
     def _difficulty_labels(self):
         """Return current menu difficulty labels."""
         return self.DIFFICULTY_OPTIONS[self.selected_mode_family]
@@ -297,6 +341,11 @@ class Game:
         self.settings_return_state = return_state or self.game_state.current_state
         self.game_state.set_state(GameState.SETTINGS)
 
+    def _open_manual(self):
+        """Open the manual page from settings."""
+        self.manual_return_state = self.game_state.current_state
+        self.game_state.set_state(GameState.MANUAL)
+
     def _close_settings(self, to_start=False):
         """Leave settings either back to the caller or to the main menu."""
         self._sync_audio_preferences()
@@ -305,6 +354,11 @@ class Game:
             return
 
         target_state = self.settings_return_state or GameState.MENU
+        self.game_state.set_state(target_state)
+
+    def _close_manual(self):
+        """Return from the manual page to the previous UI state."""
+        target_state = self.manual_return_state or GameState.SETTINGS
         self.game_state.set_state(target_state)
 
     def _action_at_pos(self, position):
@@ -346,11 +400,20 @@ class Game:
             setting_name = action.split('_', 1)[1]
             self._toggle_setting(setting_name)
             return
+        if action == 'cycle_language':
+            self._cycle_language()
+            return
+        if action == 'settings_manual':
+            self._open_manual()
+            return
         if action in ('settings_back', 'settings_save'):
             self._close_settings()
             return
         if action == 'settings_quit':
             self._close_settings(to_start=True)
+            return
+        if action == 'manual_back':
+            self._close_manual()
             return
         if action == 'end_rematch':
             self._restart_current_mode()
@@ -660,6 +723,17 @@ class Game:
                 elif event.key == pygame.K_h:
                     self.audio.play_sfx('ui_click')
                     self._toggle_setting('hints')
+                elif event.key == pygame.K_l:
+                    self.audio.play_sfx('ui_click')
+                    self._cycle_language()
+                elif event.key == pygame.K_F1:
+                    self.audio.play_sfx('ui_confirm')
+                    self._open_manual()
+
+            elif self.game_state.is_manual():
+                if event.key in (pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_F1):
+                    self.audio.play_sfx('ui_back')
+                    self._close_manual()
 
             # Gameplay
             elif self.game_state.is_playing():
@@ -793,10 +867,37 @@ class Game:
     def _get_clue_text_for_actor(self, actor, game_map):
         """Return clue text, respecting blind status without changing map rules."""
         if not self.settings_values['hints'] and self._is_human(actor):
-            return "Hints disabled in settings."
+            return self._ui_text('clue_disabled', "Hints disabled in settings.")
         if getattr(actor, 'is_blinded', False):
-            return "Clue hidden while blinded."
-        return game_map.get_clue_text(actor.current_hint_level)
+            return self._ui_text('clue_blinded', "Clue hidden while blinded.")
+        clue_text = game_map.get_clue_text(actor.current_hint_level)
+        if self._ui_language() == 'en':
+            return clue_text
+
+        if clue_text == "No more hints!":
+            return self._ui_text('clue_no_more', clue_text)
+        if clue_text == "Cannot compute next clue":
+            return self._ui_text('clue_cannot_compute', clue_text)
+
+        unavailable_match = re.fullmatch(r"Hint (\d+) is unavailable\.", clue_text)
+        if unavailable_match:
+            return self._ui_text('clue_hint_unavailable', clue_text).format(number=unavailable_match.group(1))
+
+        hint_match = re.fullmatch(r"Hint (\d+) is at (X=\d+, Y=\d+)", clue_text)
+        if hint_match:
+            return self._ui_text('clue_hint_at', clue_text).format(number=hint_match.group(1), coords=hint_match.group(2))
+
+        treasure_match = re.fullmatch(
+            r"Treasure is at (X=\d+, Y=\d+)\. You need all (\d+) hints to open it\.",
+            clue_text,
+        )
+        if treasure_match:
+            return self._ui_text('clue_treasure_at', clue_text).format(
+                coords=treasure_match.group(1),
+                count=treasure_match.group(2),
+            )
+
+        return clue_text
 
     def update(self, dt):
         """Update game logic."""
@@ -826,9 +927,48 @@ class Game:
         self.game_state.set_state(GameState.GAME_OVER)
         self._play_result_sound(winner)
 
+    def _localized_winner_text(self, winner):
+        """Localize the winner title shown on the end screen."""
+        if winner == "Draw":
+            return self._ui_text('draw_title', winner)
+
+        if self.player1 and winner.startswith(self._get_actor_name(self.player1)):
+            return f"{self._localized_actor_name(self.player1)} {self._ui_text('winner_suffix', 'Wins!')}"
+        if self.player2 and winner.startswith(self._get_actor_name(self.player2)):
+            return f"{self._localized_actor_name(self.player2)} {self._ui_text('winner_suffix', 'Wins!')}"
+        return winner
+
+    def _localized_reason_text(self, reason):
+        """Localize the end-of-round reason shown on the end screen."""
+        if self._ui_language() == 'en':
+            return reason
+
+        if reason == "Both competitors secured the treasure.":
+            return self._ui_text('end_reason_both_treasure', reason)
+        if reason == "Both competitors lost all HP.":
+            return self._ui_text('end_reason_both_hp', reason)
+        if reason == "Timer expired before anyone won.":
+            return self._ui_text('end_reason_timer', reason)
+
+        treasure_match = re.fullmatch(r"Secured the treasure after collecting all (\d+) keys\.", reason)
+        if treasure_match:
+            return self._ui_text('end_reason_treasure', reason).format(count=treasure_match.group(1))
+
+        lost_hp_match = re.fullmatch(r"(.+) lost all HP\.", reason)
+        if lost_hp_match:
+            actor_name = lost_hp_match.group(1)
+            if self.player1 and actor_name == self._get_actor_name(self.player1):
+                actor_name = self._localized_actor_name(self.player1)
+            elif self.player2 and actor_name == self._get_actor_name(self.player2):
+                actor_name = self._localized_actor_name(self.player2)
+            return self._ui_text('end_reason_lost_hp', reason).format(actor=actor_name)
+
+        return reason
+
     def _render_match(self):
         """Render gameplay views for the active game mode."""
         split_screen = self._is_split_screen_mode()
+        language = self._ui_language()
         actions = {}
         self.ui.render_gameplay_background(self.screen, split_screen=split_screen)
 
@@ -843,8 +983,8 @@ class Game:
             self.player2.render(self.screen, x_offset=half_width, y_offset=HUD_HEIGHT)
             self.ui.render_playfield_frame(self.screen, map_rect1, None, self.player1.color)
             self.ui.render_playfield_frame(self.screen, map_rect2, None, self.player2.color)
-            self.ui.render_blind_overlay(self.screen, map_rect1, self.player1)
-            self.ui.render_blind_overlay(self.screen, map_rect2, self.player2)
+            self.ui.render_blind_overlay(self.screen, map_rect1, self.player1, language=language)
+            self.ui.render_blind_overlay(self.screen, map_rect2, self.player2, language=language)
             pygame.draw.line(self.screen, WHITE, (half_width, HUD_HEIGHT), (half_width, SCREEN_HEIGHT), 2)
 
             clue_box_height = CLUE_BOX_HEIGHT
@@ -853,23 +993,26 @@ class Game:
                 self.screen,
                 self._get_clue_text_for_actor(self.player1, self.map1),
                 rect=pygame.Rect(0, clue_y, half_width, clue_box_height),
-                label=self._get_actor_name(self.player1),
+                label=self.ui.get_actor_label(self.player1, language=language),
+                language=language,
             )
             self.ui.render_clue_box(
                 self.screen,
                 self._get_clue_text_for_actor(self.player2, self.map2),
                 rect=pygame.Rect(half_width, clue_y, half_width, clue_box_height),
-                label=self._get_actor_name(self.player2),
+                label=self.ui.get_actor_label(self.player2, language=language),
+                language=language,
             )
         else:
             map_rect = pygame.Rect(0, HUD_HEIGHT, SCREEN_WIDTH, MAP_HEIGHT)
             self.map1.render(self.screen, y_offset=HUD_HEIGHT)
             self.player1.render(self.screen, y_offset=HUD_HEIGHT)
             self.ui.render_playfield_frame(self.screen, map_rect, None, self.player1.color)
-            self.ui.render_blind_overlay(self.screen, map_rect, self.player1)
+            self.ui.render_blind_overlay(self.screen, map_rect, self.player1, language=language)
             self.ui.render_clue_box(
                 self.screen,
                 self._get_clue_text_for_actor(self.player1, self.map1),
+                language=language,
             )
 
         actions.update(
@@ -878,11 +1021,12 @@ class Game:
                 self.player1,
                 self.player2,
                 self.game_state.round_time_remaining,
+                language=language,
             )
         )
 
         if self.game_state.is_paused():
-            actions.update(self.ui.render_pause_overlay(self.screen))
+            actions.update(self.ui.render_pause_overlay(self.screen, language=self._ui_language()))
         return actions
 
     def render(self):
@@ -892,27 +1036,31 @@ class Game:
         actions = {}
 
         if self.game_state.is_menu():
-            actions = self.ui.render_main_menu(self.screen)
+            actions = self.ui.render_main_menu(self.screen, language=self._ui_language())
         elif self.game_state.is_mode_select():
-            actions = self.ui.render_mode_select(self.screen, self.selected_mode)
+            actions = self.ui.render_mode_select(self.screen, self.selected_mode, language=self._ui_language())
         elif self.game_state.is_difficulty_select():
             actions = self.ui.render_difficulty_select(
                 self.screen,
                 self.selected_mode_family,
                 self._difficulty_labels(),
                 self.selected_difficulty,
+                language=self._ui_language(),
             )
         elif self.game_state.is_settings():
-            return_label = 'Return To Match' if self.settings_return_state in (GameState.PLAYING, GameState.PAUSED) else 'Back'
-            actions = self.ui.render_settings_menu(self.screen, self.settings_values, return_label=return_label)
+            return_label = self._ui_text('return_to_match') if self.settings_return_state in (GameState.PLAYING, GameState.PAUSED) else self._ui_text('back')
+            actions = self.ui.render_settings_menu(self.screen, self.settings_values, return_label=return_label, language=self._ui_language())
+        elif self.game_state.is_manual():
+            actions = self.ui.render_manual_screen(self.screen, language=self._ui_language())
         elif self.game_state.is_playing() or self.game_state.is_paused():
             actions = self._render_match()
         elif self.game_state.is_game_over():
             actions = self.ui.render_game_over(
                 self.screen,
-                self.game_state.winner,
-                self.game_state.message,
-                mode_label=self._get_mode_label(),
+                self._localized_winner_text(self.game_state.winner),
+                self._localized_reason_text(self.game_state.message),
+                mode_label=self._localized_mode_label(),
+                language=self._ui_language(),
             )
 
         self.ui_actions = actions
