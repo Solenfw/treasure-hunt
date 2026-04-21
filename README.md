@@ -24,6 +24,28 @@ Ngoài màn chơi chính, game còn có:
 - nhạc nền và hiệu ứng âm thanh
 - fullscreen
 
+
+## Demo Game
+- Start Screen
+<img width="1602" height="993" alt="Screenshot 2026-04-21 112353" src="https://github.com/user-attachments/assets/d6f7003d-ca0f-4555-87eb-23faf90e1397" />
+
+- Setting Screen
+<img width="1606" height="986" alt="Screenshot 2026-04-21 112406" src="https://github.com/user-attachments/assets/a41d02d0-6047-47db-9929-de8b058c33b9" />
+
+- Choose Modes Game
+<img width="1601" height="988" alt="Screenshot 2026-04-21 112422" src="https://github.com/user-attachments/assets/70653552-5fd3-41a1-97c5-de268d467264" />
+
+- Choose Difficult 
+<img width="1599" height="992" alt="Screenshot 2026-04-21 112801" src="https://github.com/user-attachments/assets/9d002808-ffd0-42ec-84b0-ce6492ff5f12" />
+
+- Gameplay Screen
+<img width="1606" height="990" alt="Screenshot 2026-04-21 112438" src="https://github.com/user-attachments/assets/79bc9e30-722b-4c36-aa09-3b2c1ca0d7fd" />
+
+- End Screen
+<img width="1593" height="989" alt="Screenshot 2026-04-21 112528" src="https://github.com/user-attachments/assets/f23f46cb-76a9-4d5a-b4fd-d155605ac14c" />
+
+
+
 ## Gameplay
 
 ### Luật cốt lõi
